@@ -1,0 +1,2 @@
+# This file is to ensure the directory is tracked by git.
+# Data repository layer (database interaction logic) goes here. 

@@ -1,0 +1,2 @@
+# This file is to ensure the directory is tracked by git.
+# Authentication and authorization related logic (JWT generation, validation) goes here. 
