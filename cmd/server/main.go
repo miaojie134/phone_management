@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
+	"github.com/phone_management/internal/routes"
 	"github.com/phone_management/pkg/db"
 )
 
@@ -15,14 +16,12 @@ func main() {
 	router := gin.Default()
 
 	// 设置API路由
-	// apiV1 := router.Group("/api/v1")
-	// routes.SetupAuthRoutes(apiV1)       // 认证路由
-	// routes.SetupEmployeeRoutes(apiV1)   // 员工路由
-	// routes.SetupMobileNumberRoutes(apiV1) // 手机号路由
-	// routes.SetupImportRoutes(apiV1)     // 导入路由
+	routes.SetupRoutes(router)
 
-	log.Println("Server starting on port 8080...")
-	if err := router.Run(":8080"); err != nil {
+	// TODO: 从配置中读取端口号
+	port := "8080"
+	log.Printf("Server starting on port %s...", port)
+	if err := router.Run(":" + port); err != nil {
 		log.Fatalf("Failed to run server: %v", err)
 	}
 }
