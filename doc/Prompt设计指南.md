@@ -32,7 +32,7 @@
 
 3.2 登出 API 和 JWT 中间件实现指令:
 
-实现 POST /api/v1/auth/logout 端点 (如 backend_api_docs_mvp_v1 文档 3.2 节所述，MVP 阶段返回成功消息即可)。同时，创建 Gin 中间件用于 JWT 认证，保护后续 API 路由。中间件需从请求头 Authorization: Bearer <token> 提取并使用 golang-jwt/jwt (v4 或 v5) 库验证 Token。
+实现 POST /api/v1/auth/logout 端点 (如 backend_api_docs_mvp_v1 文档 3.2 节所述，MVP 阶段返回成功消息即可)。同时，创建 Gin 中间件用于 JWT 认证，保护后续 API 路由。中间件需从请求头 Authorization: Bearer <token> 提取并使用 golang-jwt/jwt (v5) 库验证 Token。
 
 阶段 4: 核心资源 API - 以手机号码为例 (文档 3.3 节)
 
