@@ -39,7 +39,6 @@ func Login(c *gin.Context) {
 	}
 
 	var user models.User
-	// 假设 db.GetDB() 返回 *gorm.DB 实例
 	if err := db.GetDB().Where("username = ?", req.Username).First(&user).Error; err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的用户名或密码"})
 		return
