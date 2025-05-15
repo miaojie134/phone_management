@@ -10,12 +10,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/phone_management/internal/config"
 )
-
-// jwtSecretKey 是用于签名和验证JWT的密钥。
-// 重要提示：请务必从安全配置中加载此密钥，不要硬编码在生产环境中！
-// 警告: 此密钥必须与 internal/handlers/auth_handler.go 中的 jwtKey 相同!
-var jwtSecretKey = []byte("mobile")
 
 // Claims 定义了JWT中存储的自定义声明。
 // JTI (ID) 会通过内嵌的 jwt.RegisteredClaims 提供
@@ -91,7 +87,7 @@ func JWTMiddleware() gin.HandlerFunc {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
-			return jwtSecretKey, nil
+			return []byte(config.AppConfig.JWTSecret), nil // 使用配置中的密钥
 		})
 
 		if err != nil {

@@ -10,6 +10,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/phone_management/internal/auth"
+	"github.com/phone_management/internal/config"
 	"github.com/phone_management/internal/models"
 	"github.com/phone_management/pkg/db"
 )
@@ -28,9 +29,6 @@ type UserInfo struct {
 	Username string `json:"username"`
 	Role     string `json:"role"`
 }
-
-// JWT密钥，应从配置中读取
-var jwtKey = []byte("mobile") // TODO: 从配置管理中获取密钥
 
 // Login 处理管理员登录请求
 func Login(c *gin.Context) {
@@ -62,7 +60,7 @@ func Login(c *gin.Context) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(jwtKey)
+	tokenString, err := token.SignedString([]byte(config.AppConfig.JWTSecret))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法生成Token"})
 		return
