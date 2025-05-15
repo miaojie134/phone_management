@@ -28,7 +28,7 @@
 
 3.1 登录 API 实现指令:
 
-根据 backend_api_docs_mvp_v1 文档第 3.2 节 POST /api/v1/auth/login 的描述，在 internal/handlers 中生成管理员登录的 Gin 处理函数代码，并在 internal/routes 中设置相应路由。功能：从请求体绑定用户名和密码，与 SQLite 数据库中的 Users 表校验用户信息，成功后使用 golang-jwt/jwt (v4 或 v5) 库生成 JWT 并返回。包含使用 golang.org/x/crypto/bcrypt 进行密码哈希校验的逻辑。
+根据 backend_api_docs_mvp_v1 文档第 3.2 节 POST /api/v1/auth/login 的描述，在 internal/handlers 中生成管理员登录的 Gin 处理函数代码，并在 internal/routes 中设置相应路由。功能：从请求体绑定用户名和密码，与 SQLite 数据库中的 Users 表校验用户信息，成功后使用 golang-jwt/jwt (v5) 库生成 JWT 并返回。包含使用 golang.org/x/crypto/bcrypt 进行密码哈希校验的逻辑。
 
 3.2 登出 API 和 JWT 中间件实现指令:
 

@@ -6,19 +6,30 @@ import (
 	"gorm.io/gorm"
 )
 
+// NumberStatus 定义了号码状态的枚举
+type NumberStatus string
+
+const (
+	StatusIdle                NumberStatus = "闲置"
+	StatusInUse               NumberStatus = "在用"
+	StatusPendingDeactivation NumberStatus = "待注销"
+	StatusDeactivated         NumberStatus = "已注销"
+	StatusRiskPending         NumberStatus = "待核实-办卡人离职"
+)
+
 // MobileNumber 对应于数据库中的 mobile_numbers 表
 type MobileNumber struct {
-	ID                    int64          `json:"id" gorm:"primaryKey;autoIncrement"`
-	PhoneNumber           string         `json:"phoneNumber" gorm:"column:phone_number;unique;not null;size:50"`
-	ApplicantEmployeeDbID int64          `json:"applicantEmployeeDbId" gorm:"column:applicant_employee_db_id;not null"` // 办卡人员工记录的数据库 ID
-	ApplicationDate       time.Time      `json:"applicationDate" gorm:"column:application_date;type:date;not null"`     // 办卡日期
-	CurrentEmployeeDbID   *int64         `json:"currentEmployeeDbId,omitempty" gorm:"column:current_employee_db_id"`    // 当前使用人员工记录的数据库 ID
-	Status                string         `json:"status" gorm:"column:status;not null;default:'闲置';size:50"`             // 号码状态
-	Vendor                *string        `json:"vendor,omitempty" gorm:"column:vendor;size:100"`                        // 供应商
-	Remarks               *string        `json:"remarks,omitempty" gorm:"column:remarks;type:text"`                     // 备注
-	CancellationDate      *time.Time     `json:"cancellationDate,omitempty" gorm:"column:cancellation_date;type:date"`  // 注销日期
-	CreatedAt             time.Time      `json:"createdAt" gorm:"column:created_at;not null;autoCreateTime"`
-	UpdatedAt             time.Time      `json:"updatedAt" gorm:"column:updated_at;not null;autoUpdateTime"`
+	ID                    uint           `json:"id" gorm:"primaryKey"`
+	PhoneNumber           string         `json:"phoneNumber" gorm:"unique;not null" binding:"required,max=50"`
+	ApplicantEmployeeDbID uint           `json:"applicantEmployeeId" gorm:"not null" binding:"required"`                    // json 标签改为 applicantEmployeeId 以匹配API请求体
+	ApplicationDate       time.Time      `json:"applicationDate" gorm:"not null" binding:"required,time_format=2006-01-02"` // 修正：time_format 合并到 binding 标签
+	CurrentEmployeeDbID   *uint          `json:"currentEmployeeDbId"`                                                       // 当前使用人员工记录的数据库 ID
+	Status                string         `json:"status" gorm:"not null" binding:"required,oneof=闲置 在用 待注销 已注销 待核实-办卡人离职"`   // 号码状态，添加 binding 和 oneof
+	Vendor                string         `json:"vendor" binding:"max=100"`                                                  // 供应商
+	Remarks               string         `json:"remarks" binding:"max=255"`                                                 // 备注
+	CancellationDate      *time.Time     `json:"cancellationDate" binding:"omitempty,time_format=2006-01-02"`               // 修正：time_format 合并到 binding 标签
+	CreatedAt             time.Time      `json:"createdAt" gorm:"autoCreateTime"`
+	UpdatedAt             time.Time      `json:"updatedAt" gorm:"autoUpdateTime"`
 	DeletedAt             gorm.DeletedAt `json:"deletedAt,omitempty" gorm:"index"`
 }
 
