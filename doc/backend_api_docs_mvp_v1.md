@@ -362,3 +362,46 @@ API 认证: 确保所有敏感 API 都受到 JWT 或类似机制的保护。
 错误处理: 避免在错误信息中泄露过多敏感的系统内部细节。
 
 依赖库安全: 定期更新所使用的第三方库，防范已知漏洞。
+
+7. 项目文件夹结构
+   企业手机号码管理系统\_mvp/
+   ├── cmd/
+   │ └── server/
+   │ └── main.go # 应用主入口，启动 HTTP 服务器
+   ├── configs/ # (建议) 配置文件目录 (例如 config.yaml)
+   ├── internal/
+   │ ├── auth/ # (建议) 存放认证授权相关逻辑 (JWT 生成、校验等)
+   │ ├── handlers/ # HTTP 请求处理器 (Controller 层)
+   │ │ ├── auth_handler.go # 处理 /api/v1/auth 相关请求
+   │ │ ├── employee_handler.go # 处理 /api/v1/employees 相关请求
+   │ │ ├── mobilenumber_handler.go # 处理 /api/v1/mobilenumbers 相关请求
+   │ │ └── import_handler.go # 处理 /api/v1/import 相关请求
+   │ ├── models/ # 数据模型 (对应数据库表和 API 请求/响应体)
+   │ │ ├── user.go # 管理员用户模型 (Users)
+   │ │ ├── employee.go # 员工模型 (Employees)
+   │ │ ├── mobilenumber.go # 手机号码模型 (MobileNumbers)
+   │ │ └── number_usage_history.go # 号码使用历史模型 (NumberUsageHistory)
+   │ ├── repositories/ # (建议) 数据存储库层 (封装数据库操作)
+   │ │ ├── user_repository.go
+   │ │ ├── employee_repository.go
+   │ │ ├── mobilenumber_repository.go
+   │ │ └── number_usage_history_repository.go
+   │ ├── routes/ # API 路由定义
+   │ │ └── router.go # 配置 Gin 路由，将 URL 映射到 handlers
+   │ └── services/ # 业务逻辑服务层
+   │ ├── auth_service.go # 用户认证服务
+   │ ├── employee_service.go # 员工管理服务
+   │ ├── mobilenumber_service.go # 手机号码管理服务
+   │ └── import_service.go # 数据导入服务
+   ├── migrations/ # (建议) 数据库迁移脚本
+   │ └── 001_create_initial_tables.sql # 初始化数据库表的 SQL 脚本
+   ├── pkg/
+   │ ├── db/ # 数据库连接与操作相关
+   │ │ └── sqlite.go # SQLite 数据库初始化及连接管理
+   │ ├── logger/ # (建议) 日志封装
+   │ │ └── logger.go
+   │ └── utils/ # (建议) 通用工具函数
+   │ └── response.go # 统一 API 响应格式等
+   ├── go.mod # Go 模块依赖文件
+   ├── go.sum # Go 模块校验和文件
+   └── README.md # 项目说明文档
