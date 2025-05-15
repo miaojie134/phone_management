@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/phone_management/configs"
 	"github.com/phone_management/internal/auth"
-	"github.com/phone_management/internal/config"
 	"github.com/phone_management/internal/models"
 	"github.com/phone_management/pkg/db"
 )
@@ -60,7 +60,7 @@ func Login(c *gin.Context) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(config.AppConfig.JWTSecret))
+	tokenString, err := token.SignedString([]byte(configs.AppConfig.JWTSecret))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法生成Token"})
 		return

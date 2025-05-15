@@ -4,7 +4,7 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
-	"github.com/phone_management/internal/config" // 导入配置包
+	"github.com/phone_management/configs"
 	"github.com/phone_management/internal/routes"
 	"github.com/phone_management/pkg/db"
 )
@@ -12,7 +12,7 @@ import (
 func main() {
 	// 1. 加载应用配置
 	// 这应该在任何依赖配置的代码之前执行
-	config.LoadConfig()
+	configs.LoadConfig()
 
 	// 2. 初始化数据库连接
 	db.InitDB()        // 从 pkg/db 调用 InitDB
@@ -25,7 +25,7 @@ func main() {
 	routes.SetupRoutes(router)
 
 	// 5. 从配置中获取端口号并启动服务器
-	port := config.AppConfig.ServerPort // 使用配置中的端口
+	port := configs.AppConfig.ServerPort // 使用配置中的端口
 	log.Printf("服务器正在监听端口 %s...", port)
 	if err := router.Run(":" + port); err != nil {
 		log.Fatalf("启动服务器失败: %v", err)

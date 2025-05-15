@@ -10,7 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/phone_management/internal/config"
+	"github.com/phone_management/configs"
 )
 
 // Claims 定义了JWT中存储的自定义声明。
@@ -87,7 +87,7 @@ func JWTMiddleware() gin.HandlerFunc {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
-			return []byte(config.AppConfig.JWTSecret), nil // 使用配置中的密钥
+			return []byte(configs.AppConfig.JWTSecret), nil // 使用配置中的密钥
 		})
 
 		if err != nil {
