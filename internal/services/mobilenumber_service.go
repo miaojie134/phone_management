@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"time"
 
 	"github.com/phone_management/internal/models"
 	"github.com/phone_management/internal/repositories"
@@ -15,6 +16,7 @@ type MobileNumberService interface {
 	CreateMobileNumber(mobileNumber *models.MobileNumber) (*models.MobileNumber, error)
 	GetMobileNumbers(page, limit int, sortBy, sortOrder, search, status, applicantStatus string) ([]models.MobileNumberResponse, int64, error)
 	GetMobileNumberByID(id uint) (*models.MobileNumberResponse, error)
+	UpdateMobileNumber(id uint, payload models.MobileNumberUpdatePayload) (*models.MobileNumber, error)
 }
 
 // mobileNumberService 是 MobileNumberService 的实现
@@ -60,4 +62,40 @@ func (s *mobileNumberService) GetMobileNumberByID(id uint) (*models.MobileNumber
 		return nil, err
 	}
 	return mobileNumber, nil
+}
+
+// UpdateMobileNumber 处理更新手机号码的业务逻辑
+func (s *mobileNumberService) UpdateMobileNumber(id uint, payload models.MobileNumberUpdatePayload) (*models.MobileNumber, error) {
+	updates := make(map[string]interface{})
+
+	if payload.Status != nil {
+		updates["status"] = *payload.Status
+		// 当号码状态变更为"已注销"时，自动记录注销时间。
+		if *payload.Status == string(models.StatusDeactivated) {
+			now := time.Now()
+			updates["cancellation_date"] = &now
+		}
+	}
+	if payload.Vendor != nil {
+		updates["vendor"] = *payload.Vendor
+	}
+	if payload.Remarks != nil {
+		updates["remarks"] = *payload.Remarks
+	}
+
+	if len(updates) == 0 {
+		// 如果没有提供任何要更新的字段，可以返回一个错误或直接返回未修改的记录
+		// 这里选择返回错误，因为API期望至少更新一个字段
+		return nil, errors.New("没有提供任何更新字段")
+	}
+
+	updatedMobileNumber, err := s.repo.UpdateMobileNumber(id, updates)
+	if err != nil {
+		if errors.Is(err, repositories.ErrRecordNotFound) {
+			return nil, ErrMobileNumberNotFound
+		}
+		return nil, err
+	}
+
+	return updatedMobileNumber, nil
 }

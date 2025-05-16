@@ -56,3 +56,13 @@ type MobileNumberResponse struct {
 	UpdatedAt             time.Time            `json:"updatedAt"`
 	UsageHistory          []NumberUsageHistory `json:"usageHistory,omitempty"` // 号码使用历史
 }
+
+// MobileNumberUpdatePayload 定义了更新手机号码信息的请求体结构
+type MobileNumberUpdatePayload struct {
+	Status  *string `json:"status,omitempty" binding:"omitempty,oneof=闲置 在用 待注销 已注销 待核实-办卡人离职"` // 号码状态
+	Vendor  *string `json:"vendor,omitempty" binding:"omitempty,max=100"`                       // 供应商
+	Remarks *string `json:"remarks,omitempty" binding:"omitempty,max=255"`                      // 备注
+}
+
+// MobileNumberAssignPayload 定义了分配号码的请求体
+// ... existing code ...

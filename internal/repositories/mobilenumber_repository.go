@@ -20,6 +20,7 @@ type MobileNumberRepository interface {
 	GetMobileNumbers(page, limit int, sortBy, sortOrder, search, status, applicantStatus string) ([]models.MobileNumberResponse, int64, error)
 	GetMobileNumberByID(id uint) (*models.MobileNumberResponse, error)
 	//未来可以扩展其他方法，如 GetByPhoneNumber, Update, Delete 等
+	UpdateMobileNumber(id uint, updates map[string]interface{}) (*models.MobileNumber, error)
 }
 
 // gormMobileNumberRepository 是 MobileNumberRepository 的 GORM 实现
@@ -185,4 +186,30 @@ func (r *gormMobileNumberRepository) GetMobileNumberByID(id uint) (*models.Mobil
 	mobileNumberDetail.UsageHistory = usageHistory
 
 	return &mobileNumberDetail, nil
+}
+
+// UpdateMobileNumber 更新数据库中的手机号码记录
+// updates 是一个包含要更新字段及其新值的 map
+func (r *gormMobileNumberRepository) UpdateMobileNumber(id uint, updates map[string]interface{}) (*models.MobileNumber, error) {
+	var mobileNumber models.MobileNumber
+	// 首先，检查记录是否存在
+	if err := r.db.First(&mobileNumber, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrRecordNotFound
+		}
+		return nil, err
+	}
+
+	// 更新记录
+	// 使用 Model(&models.MobileNumber{}) 指定模型，并通过 Where 更新特定ID的记录
+	if err := r.db.Model(&models.MobileNumber{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+		return nil, err
+	}
+
+	// 重新查询更新后的记录并返回
+	if err := r.db.First(&mobileNumber, id).Error; err != nil {
+		return nil, err // 理论上此时应该能找到
+	}
+
+	return &mobileNumber, nil
 }

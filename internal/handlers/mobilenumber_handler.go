@@ -224,3 +224,53 @@ func parseUint(idStr string) (uint, error) {
 	}
 	return uint(val), nil
 }
+
+// UpdateMobileNumber godoc
+// @Summary 更新指定ID的手机号码信息
+// @Description 更新指定ID的手机号码信息 (主要用于更新状态、供应商、备注)。当号码状态变更为"已注销"时，自动记录注销时间。
+// @Tags MobileNumbers
+// @Accept json
+// @Produce json
+// @Param id path uint true "手机号码ID"
+// @Param mobileNumberUpdate body models.MobileNumberUpdatePayload true "要更新的手机号码字段"
+// @Success 200 {object} utils.SuccessResponse{data=models.MobileNumber} "更新后的号码对象"
+// @Failure 400 {object} utils.APIErrorResponse "请求参数错误或数据校验失败 / 无效的ID格式 / 没有提供任何更新字段"
+// @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
+// @Failure 404 {object} utils.APIErrorResponse "号码未找到"
+// @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
+// @Router /mobilenumbers/{id}/update [post]
+// @Security BearerAuth
+func (h *MobileNumberHandler) UpdateMobileNumber(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := parseUint(idStr)
+	if err != nil {
+		utils.RespondAPIError(c, http.StatusBadRequest, "无效的ID格式", err.Error())
+		return
+	}
+
+	var payload models.MobileNumberUpdatePayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		utils.RespondValidationError(c, err.Error())
+		return
+	}
+
+	// 校验是否至少提供了一个可更新的字段
+	if payload.Status == nil && payload.Vendor == nil && payload.Remarks == nil {
+		utils.RespondAPIError(c, http.StatusBadRequest, "没有提供任何有效的更新字段", nil)
+		return
+	}
+
+	updatedMobileNumber, err := h.service.UpdateMobileNumber(id, payload)
+	if err != nil {
+		if errors.Is(err, services.ErrMobileNumberNotFound) {
+			utils.RespondNotFoundError(c, "手机号码")
+		} else if err.Error() == "没有提供任何更新字段" { // 这个错误来自 service 层
+			utils.RespondAPIError(c, http.StatusBadRequest, err.Error(), nil)
+		} else {
+			utils.RespondInternalServerError(c, "更新手机号码失败", err.Error())
+		}
+		return
+	}
+
+	utils.RespondSuccess(c, http.StatusOK, updatedMobileNumber, "手机号码更新成功")
+}
