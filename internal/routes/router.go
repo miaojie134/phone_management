@@ -44,8 +44,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		{
 			// POST /api/v1/mobilenumbers/
 			mobileNumbersGroup.POST("/", mobileNumberHandler.CreateMobileNumber)
-			// 其他手机号码相关路由可在此处添加，例如：
-			// mobileNumbersGroup.GET("/", mobileNumberHandler.GetMobileNumbers)
+			mobileNumbersGroup.GET("/", mobileNumberHandler.GetMobileNumbers)
 			// mobileNumbersGroup.GET("/:id", mobileNumberHandler.GetMobileNumberByID)
 			// mobileNumbersGroup.POST("/:id/update", mobileNumberHandler.UpdateMobileNumber)
 			// mobileNumbersGroup.POST("/:id/assign", mobileNumberHandler.AssignMobileNumber)

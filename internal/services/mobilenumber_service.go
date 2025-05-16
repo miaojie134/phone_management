@@ -8,6 +8,7 @@ import (
 // MobileNumberService 定义了手机号码服务的接口
 type MobileNumberService interface {
 	CreateMobileNumber(mobileNumber *models.MobileNumber) (*models.MobileNumber, error)
+	GetMobileNumbers(page, limit int, sortBy, sortOrder, search, status, applicantStatus string) ([]models.MobileNumberResponse, int64, error)
 }
 
 // mobileNumberService 是 MobileNumberService 的实现
@@ -33,4 +34,11 @@ func (s *mobileNumberService) CreateMobileNumber(mobileNumber *models.MobileNumb
 		return nil, err // 将仓库层错误（包括 ErrPhoneNumberExists）直接向上传递
 	}
 	return createdMobileNumber, nil
+}
+
+// GetMobileNumbers 处理获取手机号码列表的业务逻辑
+func (s *mobileNumberService) GetMobileNumbers(page, limit int, sortBy, sortOrder, search, status, applicantStatus string) ([]models.MobileNumberResponse, int64, error) {
+	// 当前业务逻辑主要是参数传递和调用仓库层
+	// 未来可在这里添加更复杂的业务规则
+	return s.repo.GetMobileNumbers(page, limit, sortBy, sortOrder, search, status, applicantStatus)
 }

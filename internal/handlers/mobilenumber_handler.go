@@ -9,6 +9,7 @@ import (
 	"github.com/phone_management/internal/models"
 	"github.com/phone_management/internal/repositories" // 用于判断 ErrPhoneNumberExists
 	"github.com/phone_management/internal/services"
+	"github.com/phone_management/pkg/utils" // 新增导入
 )
 
 // MobileNumberHandler 封装了手机号码相关的 HTTP 处理逻辑
@@ -41,31 +42,27 @@ type CreateMobileNumberPayload struct {
 // @Accept json
 // @Produce json
 // @Param mobileNumber body CreateMobileNumberPayload true "手机号码信息 (日期格式 YYYY-MM-DD)"
-// @Success 201 {object} models.MobileNumber "创建成功的号码对象"
-// @Failure 400 {object} map[string]interface{} "请求参数错误或数据校验失败 (e.g. {\"error\": \"请求参数无效\", \"details\": \"...\"})"
-// @Failure 401 {object} map[string]interface{} "未认证或 Token 无效/过期 (e.g. {\"error\": \"未授权\"})"
-// @Failure 409 {object} map[string]interface{} "手机号码已存在 (e.g. {\"error\": \"手机号码已存在\"})"
-// @Failure 500 {object} map[string]interface{} "服务器内部错误 (e.g. {\"error\": \"创建手机号码失败\", \"details\": \"...\"})"
+// @Success 201 {object} utils.SuccessResponse{data=models.MobileNumber} "创建成功的号码对象"
+// @Failure 400 {object} utils.APIErrorResponse "请求参数错误或数据校验失败"
+// @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
+// @Failure 409 {object} utils.APIErrorResponse "手机号码已存在"
+// @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
 // @Router /mobilenumbers [post]
 // @Security BearerAuth
 func (h *MobileNumberHandler) CreateMobileNumber(c *gin.Context) {
 	var payload CreateMobileNumberPayload
 
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数无效", "details": err.Error()})
+		utils.RespondValidationError(c, err.Error())
 		return
 	}
 
-	// 解析 applicationDate 字符串为 time.Time
 	applicationDate, err := time.Parse("2006-01-02", payload.ApplicationDate)
 	if err != nil {
-		// 这个错误理论上不应该发生，因为 Gin 的 datetime tag 已经校验过格式了
-		// 但作为健壮性考虑，还是处理一下
-		c.JSON(http.StatusBadRequest, gin.H{"error": "申请日期格式无效", "details": err.Error()})
+		utils.RespondValidationError(c, "申请日期格式无效: "+err.Error())
 		return
 	}
 
-	// 创建 models.MobileNumber 实例用于传递给 service 层
 	mobileNumberToCreate := &models.MobileNumber{
 		PhoneNumber:           payload.PhoneNumber,
 		ApplicantEmployeeDbID: payload.ApplicantEmployeeDbID,
@@ -73,29 +70,111 @@ func (h *MobileNumberHandler) CreateMobileNumber(c *gin.Context) {
 		Status:                payload.Status,
 		Vendor:                payload.Vendor,
 		Remarks:               payload.Remarks,
-		// 如果 payload 中有 CurrentEmployeeDbID 和 CancellationDate，也需要相应处理
-		// CurrentEmployeeDbID: payload.CurrentEmployeeDbID,
 	}
-
-	// 如果 CancellationDate 在 payload 中是可选的，并且被提供了，则解析它
-	// if payload.CancellationDate != "" {
-	// 	cancellationDate, err := time.Parse("2006-01-02", payload.CancellationDate)
-	// 	if err != nil {
-	// 		c.JSON(http.StatusBadRequest, gin.H{"error": "注销日期格式无效", "details": err.Error()})
-	// 		return
-	// 	}
-	// 	mobileNumberToCreate.CancellationDate = &cancellationDate
-	// }
 
 	createdMobileNumber, err := h.service.CreateMobileNumber(mobileNumberToCreate)
 	if err != nil {
 		if errors.Is(err, repositories.ErrPhoneNumberExists) {
-			c.JSON(http.StatusConflict, gin.H{"error": repositories.ErrPhoneNumberExists.Error()})
+			utils.RespondConflictError(c, repositories.ErrPhoneNumberExists.Error())
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "创建手机号码失败", "details": err.Error()})
+			utils.RespondInternalServerError(c, "创建手机号码失败", err.Error())
 		}
 		return
 	}
 
-	c.JSON(http.StatusCreated, createdMobileNumber)
+	utils.RespondSuccess(c, http.StatusCreated, createdMobileNumber, "手机号码创建成功")
+}
+
+// 定义 GetMobileNumbers 的分页响应结构
+type PagedMobileNumbersData struct {
+	Items      []models.MobileNumberResponse `json:"items"`
+	Pagination PaginationInfo                `json:"pagination"`
+}
+
+type PaginationInfo struct {
+	TotalItems  int64 `json:"totalItems"`
+	TotalPages  int64 `json:"totalPages"`
+	CurrentPage int   `json:"currentPage"`
+	PageSize    int   `json:"pageSize"`
+}
+
+// GetMobileNumbers godoc
+// @Summary 获取手机号码列表
+// @Description 根据查询参数获取手机号码列表，支持分页、搜索和筛选
+// @Tags MobileNumbers
+// @Accept json
+// @Produce json
+// @Param page query int false "页码" default(1)
+// @Param limit query int false "每页数量" default(10)
+// @Param sortBy query string false "排序字段 (例如: phoneNumber, applicationDate)"
+// @Param sortOrder query string false "排序顺序 ('asc'或'desc')"
+// @Param search query string false "搜索关键词 (匹配手机号、使用人、办卡人)"
+// @Param status query string false "号码状态筛选 (例如: 闲置, 在用)"
+// @Param applicantStatus query string false "办卡人当前在职状态筛选 ('Active'或'Departed')"
+// @Success 200 {object} utils.SuccessResponse{data=PagedMobileNumbersData} "成功响应，包含号码列表和分页信息"
+// @Failure 400 {object} utils.APIErrorResponse "请求参数错误"
+// @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
+// @Router /mobilenumbers [get]
+// @Security BearerAuth
+func (h *MobileNumberHandler) GetMobileNumbers(c *gin.Context) {
+	type GetMobileNumbersQuery struct {
+		Page            int    `form:"page,default=1"`
+		Limit           int    `form:"limit,default=10"`
+		SortBy          string `form:"sortBy"`
+		SortOrder       string `form:"sortOrder,default=asc"`
+		Search          string `form:"search"`
+		Status          string `form:"status"`
+		ApplicantStatus string `form:"applicantStatus"`
+	}
+
+	var queryParams GetMobileNumbersQuery
+	if err := c.ShouldBindQuery(&queryParams); err != nil {
+		utils.RespondValidationError(c, err.Error())
+		return
+	}
+
+	if queryParams.SortOrder != "asc" && queryParams.SortOrder != "desc" {
+		queryParams.SortOrder = "asc"
+	}
+	if queryParams.Limit <= 0 {
+		queryParams.Limit = 10
+	}
+	if queryParams.Page <= 0 {
+		queryParams.Page = 1
+	}
+
+	mobileNumbers, totalItems, err := h.service.GetMobileNumbers(
+		queryParams.Page,
+		queryParams.Limit,
+		queryParams.SortBy,
+		queryParams.SortOrder,
+		queryParams.Search,
+		queryParams.Status,
+		queryParams.ApplicantStatus,
+	)
+
+	if err != nil {
+		utils.RespondInternalServerError(c, "获取手机号码列表失败", err.Error())
+		return
+	}
+
+	totalPages := int64(0)
+	if queryParams.Limit > 0 { // 防止除以零
+		totalPages = (totalItems + int64(queryParams.Limit) - 1) / int64(queryParams.Limit)
+	}
+	if totalPages == 0 && totalItems > 0 {
+		totalPages = 1
+	}
+
+	pagedData := PagedMobileNumbersData{
+		Items: mobileNumbers,
+		Pagination: PaginationInfo{
+			TotalItems:  totalItems,
+			TotalPages:  totalPages,
+			CurrentPage: queryParams.Page,
+			PageSize:    queryParams.Limit,
+		},
+	}
+
+	utils.RespondSuccess(c, http.StatusOK, pagedData, "手机号码列表获取成功")
 }

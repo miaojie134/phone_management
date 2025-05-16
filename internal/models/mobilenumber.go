@@ -37,3 +37,21 @@ type MobileNumber struct {
 func (MobileNumber) TableName() string {
 	return "mobile_numbers"
 }
+
+// MobileNumberResponse 是用于 API 响应的手机号码数据结构，包含关联信息
+type MobileNumberResponse struct {
+	ID                    uint       `json:"id"`
+	PhoneNumber           string     `json:"phoneNumber"`
+	ApplicantEmployeeDbID uint       `json:"applicantEmployeeId"`
+	ApplicantName         string     `json:"applicantName,omitempty"`   // 办卡人姓名
+	ApplicantStatus       string     `json:"applicantStatus,omitempty"` // 办卡人当前在职状态
+	ApplicationDate       time.Time  `json:"applicationDate"`
+	CurrentEmployeeDbID   *uint      `json:"currentEmployeeDbId,omitempty"`
+	CurrentUserName       string     `json:"currentUserName,omitempty"` // 当前使用人姓名
+	Status                string     `json:"status"`
+	Vendor                string     `json:"vendor,omitempty"`
+	Remarks               string     `json:"remarks,omitempty"`
+	CancellationDate      *time.Time `json:"cancellationDate,omitempty"`
+	CreatedAt             time.Time  `json:"createdAt"`
+	UpdatedAt             time.Time  `json:"updatedAt"`
+}

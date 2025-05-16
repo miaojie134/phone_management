@@ -42,7 +42,7 @@
 
 4.2 获取号码列表 API 实现指令 (GET /):
 
-实现 GET /api/v1/mobilenumbers 端点 (如 backend_api_docs_mvp_v1 文档 3.3 节所述)。Gin 处理函数需处理查询参数：page, limit, sortBy, sortOrder, search, status, applicantStatus。后端逻辑需正确处理参数，从 SQLite 查询数据，进行必要的表连接（如与 Employees 表）以获取办卡人和使用人姓名及办卡人状态。返回数据格式符合文档中的分页结构。
+实现 GET /api/v1/mobilenumbers 端点 (如 backend_api_docs_mvp_v1 文档 3.3 节所述)。Gin 处理函数需处理查询参数：page, limit, sortBy, sortOrder, search, status, applicantStatus。后端逻辑需正确处理参数，从 SQLite 查询数据，进行必要的表连接以获取办卡人和使用人姓名及办卡人状态。返回数据格式符合文档中的分页结构。
 
 (用户提示：逐步为 GET /:id, POST /:id/update, POST /:id/assign, POST /:id/unassign 生成类似的指令)
 

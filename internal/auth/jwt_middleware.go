@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/phone_management/configs"
+	"github.com/phone_management/pkg/utils"
 )
 
 // Claims 定义了JWT中存储的自定义声明。
@@ -67,14 +68,14 @@ func JWTMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header is required"})
+			utils.RespondUnauthorizedError(c, "Authorization header is required")
 			c.Abort()
 			return
 		}
 
 		parts := strings.Split(authHeader, " ")
 		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header format must be Bearer {token}"})
+			utils.RespondUnauthorizedError(c, "Authorization header format must be Bearer {token}")
 			c.Abort()
 			return
 		}
@@ -93,34 +94,35 @@ func JWTMiddleware() gin.HandlerFunc {
 		if err != nil {
 			// 使用 errors.Is 来判断特定的JWT错误类型
 			if errors.Is(err, jwt.ErrTokenMalformed) {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "Token is malformed"})
+				utils.RespondUnauthorizedError(c, "Token is malformed")
 			} else if errors.Is(err, jwt.ErrTokenExpired) || errors.Is(err, jwt.ErrTokenNotValidYet) {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "Token is expired or not valid yet"})
+				utils.RespondUnauthorizedError(c, "Token is expired or not valid yet")
 			} else if errors.Is(err, jwt.ErrSignatureInvalid) {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token signature"})
+				utils.RespondUnauthorizedError(c, "Invalid token signature")
 			} else {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token: " + err.Error()})
+				// 对于其他未明确分类的token错误，使用更通用的 RespondAPIError
+				utils.RespondAPIError(c, http.StatusUnauthorized, "Invalid token", err.Error())
 			}
 			c.Abort()
 			return
 		}
 
 		if !token.Valid { // ParseWithClaims 验证失败时 err != nil，此检查可能多余但无害
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token is invalid"})
+			utils.RespondUnauthorizedError(c, "Token is invalid")
 			c.Abort()
 			return
 		}
 
 		// 检查JTI是否存在
 		if claims.ID == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token missing JTI (JWT ID)"})
+			utils.RespondUnauthorizedError(c, "Token missing JTI (JWT ID)")
 			c.Abort()
 			return
 		}
 
 		// 检查Token是否已在拒绝列表
 		if IsTokenDenylisted(claims.ID) {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token has been invalidated (logged out)"})
+			utils.RespondUnauthorizedError(c, "Token has been invalidated (logged out)")
 			c.Abort()
 			return
 		}

@@ -13,6 +13,7 @@ import (
 	"github.com/phone_management/internal/auth"
 	"github.com/phone_management/internal/models"
 	"github.com/phone_management/pkg/db"
+	"github.com/phone_management/pkg/utils"
 )
 
 type LoginRequest struct {
@@ -30,27 +31,37 @@ type UserInfo struct {
 	Role     string `json:"role"`
 }
 
-// Login 处理管理员登录请求
+// Login godoc
+// @Summary 管理员登录
+// @Description 验证管理员凭证并返回 JWT
+// @Tags auth
+// @Accept  json
+// @Produce  json
+// @Param credentials body LoginRequest true "登录凭证"
+// @Success 200 {object} utils.SuccessResponse{data=LoginResponse} "登录成功，返回 Token 和用户信息"
+// @Failure 400 {object} utils.APIErrorResponse "请求参数错误"
+// @Failure 401 {object} utils.APIErrorResponse "无效的用户名或密码"
+// @Failure 500 {object} utils.APIErrorResponse "无法生成Token"
+// @Router /auth/login [post]
 func Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误", "details": err.Error()})
+		utils.RespondValidationError(c, err.Error())
 		return
 	}
 
 	var user models.User
 	if err := db.GetDB().Where("username = ?", req.Username).First(&user).Error; err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的用户名或密码"})
+		utils.RespondUnauthorizedError(c, "无效的用户名或密码")
 		return
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "无效的用户名或密码"})
+		utils.RespondUnauthorizedError(c, "无效的用户名或密码")
 		return
 	}
 
-	// 生成JWT
-	expirationTime := time.Now().Add(24 * time.Hour) // Token 有效期24小时
+	expirationTime := time.Now().Add(24 * time.Hour)
 	claims := &jwt.RegisteredClaims{
 		ID:        uuid.NewString(),
 		Subject:   user.Username,
@@ -62,17 +73,18 @@ func Login(c *gin.Context) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString([]byte(configs.AppConfig.JWTSecret))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "无法生成Token"})
+		utils.RespondInternalServerError(c, "无法生成Token", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, LoginResponse{
+	loginResp := LoginResponse{
 		Token: tokenString,
 		User: UserInfo{
 			Username: user.Username,
 			Role:     user.Role,
 		},
-	})
+	}
+	utils.RespondSuccess(c, http.StatusOK, loginResp, "登录成功")
 }
 
 // LogoutHandler godoc
@@ -82,18 +94,15 @@ func Login(c *gin.Context) {
 // @Security BearerAuth
 // @Accept  json
 // @Produce  json
-// @Success 200 {object} map[string]string "Logout successful"
-// @Failure 400 {object} map[string]string "Bad Request (e.g., missing JTI or EXP in context)"
-// @Failure 401 {object} map[string]string "Unauthorized (token issues handled by JWTMiddleware)"
+// @Success 200 {object} utils.SuccessResponse "成功登出"
+// @Failure 400 {object} utils.APIErrorResponse "错误的请求 (例如，上下文中缺少JTI或EXP)"
 // @Router /auth/logout [post]
 func LogoutHandler(c *gin.Context) {
 	jtiVal, jtiExists := c.Get("jti")
 	expVal, expExists := c.Get("exp")
 
 	if !jtiExists || !expExists {
-		// 这通常不应该发生，因为JWTMiddleware应该已经填充了这些值
-		// 或者如果logout路由没有被JWTMiddleware正确保护
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Logout context error: JTI or EXP not found in context"})
+		utils.RespondAPIError(c, http.StatusBadRequest, "Logout context error: JTI or EXP not found in context", nil)
 		return
 	}
 
@@ -101,14 +110,14 @@ func LogoutHandler(c *gin.Context) {
 	exp, okEXP := expVal.(time.Time)
 
 	if !okJTI || jti == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Logout context error: Invalid JTI"})
+		utils.RespondAPIError(c, http.StatusBadRequest, "Logout context error: Invalid JTI", nil)
 		return
 	}
 	if !okEXP {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Logout context error: Invalid EXP"})
+		utils.RespondAPIError(c, http.StatusBadRequest, "Logout context error: Invalid EXP", nil)
 		return
 	}
 
-	auth.AddToDenylist(jti, exp) // 将JTI添加到拒绝列表
-	c.JSON(http.StatusOK, gin.H{"message": "Logout successful"})
+	auth.AddToDenylist(jti, exp)
+	utils.RespondSuccess(c, http.StatusOK, nil, "成功登出")
 }
