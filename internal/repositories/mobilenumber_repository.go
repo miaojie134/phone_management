@@ -27,7 +27,8 @@ type MobileNumberRepository interface {
 	// CreateMobileNumber 的第二个参数 mobileNumber 中已包含 ApplicantEmployeeID (string)
 	CreateMobileNumber(mobileNumber *models.MobileNumber) (*models.MobileNumber, error)
 	GetMobileNumbers(page, limit int, sortBy, sortOrder, search, status, applicantStatus string) ([]models.MobileNumberResponse, int64, error)
-	GetMobileNumberByID(id uint) (*models.MobileNumberResponse, error)
+	GetMobileNumberResponseByPhoneNumber(phoneNumber string) (*models.MobileNumberResponse, error)
+	GetMobileNumberByPhoneNumber(phoneNumber string) (*models.MobileNumber, error)
 	//未来可以扩展其他方法，如 GetByPhoneNumber, Update, Delete 等
 	UpdateMobileNumber(id uint, updates map[string]interface{}) (*models.MobileNumber, error)
 	// AssignMobileNumber 的第二个参数 employeeBusinessID 应该是 string (业务工号)
@@ -235,19 +236,19 @@ func (r *gormMobileNumberRepository) GetMobileNumbers(page, limit int, sortBy, s
 	return mobileNumbers, totalItems, nil
 }
 
-// GetMobileNumberByID 从数据库中获取指定ID的手机号码详情及其使用历史
-func (r *gormMobileNumberRepository) GetMobileNumberByID(id uint) (*models.MobileNumberResponse, error) {
+// GetMobileNumberResponseByPhoneNumber 根据手机号码字符串查询手机号码详细信息，包括关联数据
+func (r *gormMobileNumberRepository) GetMobileNumberResponseByPhoneNumber(phoneNumber string) (*models.MobileNumberResponse, error) {
 	var mobileNumberDetail models.MobileNumberResponse
 
 	tx := r.db.Model(&models.MobileNumber{}).
 		Select(
 			"mobile_numbers.id AS id",
 			"mobile_numbers.phone_number AS phone_number",
-			"mobile_numbers.applicant_employee_id AS applicant_employee_id", // 新列名
+			"mobile_numbers.applicant_employee_id AS applicant_employee_id",
 			"applicant.full_name AS applicant_name",
 			"applicant.employment_status AS applicant_status",
 			"mobile_numbers.application_date AS application_date",
-			"mobile_numbers.current_employee_id AS current_employee_id", // 新列名
+			"mobile_numbers.current_employee_id AS current_employee_id",
 			"current_user.full_name AS current_user_name",
 			"mobile_numbers.status AS status",
 			"mobile_numbers.vendor AS vendor",
@@ -256,29 +257,41 @@ func (r *gormMobileNumberRepository) GetMobileNumberByID(id uint) (*models.Mobil
 			"mobile_numbers.created_at AS created_at",
 			"mobile_numbers.updated_at AS updated_at",
 		).
-		Joins("LEFT JOIN employees AS applicant ON applicant.employee_id = mobile_numbers.applicant_employee_id").     // 连接条件改为业务工号
-		Joins("LEFT JOIN employees AS current_user ON current_user.employee_id = mobile_numbers.current_employee_id"). // 连接条件改为业务工号
-		Where("mobile_numbers.id = ?", id).
+		Joins("LEFT JOIN employees AS applicant ON applicant.employee_id = mobile_numbers.applicant_employee_id").
+		Joins("LEFT JOIN employees AS current_user ON current_user.employee_id = mobile_numbers.current_employee_id").
+		Where("mobile_numbers.phone_number = ?", phoneNumber). // 查询条件改为 phone_number
 		First(&mobileNumberDetail)
 
 	if tx.Error != nil {
 		if errors.Is(tx.Error, gorm.ErrRecordNotFound) {
-			return nil, ErrRecordNotFound // 返回仓库层定义的 ErrRecordNotFound
+			return nil, ErrRecordNotFound
 		}
 		return nil, tx.Error
 	}
 
-	// 2. 获取该号码的使用历史
-	var usageHistory []models.NumberUsageHistory
-	if err := r.db.Where("mobile_number_db_id = ?", id).Order("start_date desc").Find(&usageHistory).Error; err != nil {
+	// 加载使用历史
+	if err := r.db.Model(&models.NumberUsageHistory{}).Where("mobile_number_db_id = ?", mobileNumberDetail.ID).Order("start_date desc").Find(&mobileNumberDetail.UsageHistory).Error; err != nil {
 		return nil, err
 	}
-	mobileNumberDetail.UsageHistory = usageHistory
 
 	return &mobileNumberDetail, nil
 }
 
-// UpdateMobileNumber 更新数据库中的手机号码记录
+// GetMobileNumberByPhoneNumber 根据手机号码字符串查询手机号码信息
+// 注意：这里返回 *models.MobileNumber 而不是 *models.MobileNumberResponse
+// 因为服务层可能需要原始模型对象进行操作，例如获取其数据库ID
+func (r *gormMobileNumberRepository) GetMobileNumberByPhoneNumber(phoneNumber string) (*models.MobileNumber, error) {
+	var mobileNumber models.MobileNumber
+	if err := r.db.Where("phone_number = ?", phoneNumber).First(&mobileNumber).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrRecordNotFound // 使用仓库已定义的错误
+		}
+		return nil, err
+	}
+	return &mobileNumber, nil
+}
+
+// UpdateMobileNumber 更新数据库中指定ID的手机号码信息
 // updates 是一个包含要更新字段及其新值的 map
 func (r *gormMobileNumberRepository) UpdateMobileNumber(id uint, updates map[string]interface{}) (*models.MobileNumber, error) {
 	var mobileNumber models.MobileNumber

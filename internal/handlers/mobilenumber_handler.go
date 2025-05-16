@@ -179,29 +179,31 @@ func (h *MobileNumberHandler) GetMobileNumbers(c *gin.Context) {
 }
 
 // GetMobileNumberByID godoc
-// @Summary 获取指定ID的手机号码详情
-// @Description 根据路径参数ID获取单个手机号码的完整信息，包括其使用历史。
+// @Summary 获取指定手机号码的详情
+// @Description 根据路径参数手机号码字符串获取单个手机号码的完整信息，包括其使用历史。
 // @Tags MobileNumbers
 // @Accept json
 // @Produce json
-// @Param id path uint true "手机号码ID"
+// @Param phoneNumber path string true "手机号码字符串"
 // @Success 200 {object} utils.SuccessResponse{data=models.MobileNumberResponse} "成功响应，包含号码详情及其使用历史"
-// @Failure 400 {object} utils.APIErrorResponse "无效的ID格式"
+// @Failure 400 {object} utils.APIErrorResponse "无效的手机号码格式 (保留，以防未来有格式校验)"
 // @Failure 404 {object} utils.APIErrorResponse "号码未找到"
 // @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
-// @Router /mobilenumbers/{id} [get]
+// @Router /mobilenumbers/{phoneNumber} [get]
 // @Security BearerAuth
 func (h *MobileNumberHandler) GetMobileNumberByID(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := parseUint(idStr) // 需要一个辅助函数来解析 uint
-	if err != nil {
-		utils.RespondAPIError(c, http.StatusBadRequest, "无效的ID格式", err.Error())
-		return
-	}
+	phoneNumberStr := c.Param("phoneNumber") // 读取 phoneNumber 字符串
+	// 不再需要 parseUint
+	// id, err := parseUint(idStr)
+	// if err != nil {
+	// 	utils.RespondAPIError(c, http.StatusBadRequest, "无效的ID格式", err.Error())
+	// 	return
+	// }
 
-	mobileNumber, err := h.service.GetMobileNumberByID(id)
+	// 假设服务层有 GetMobileNumberByPhoneNumberDetail 方法
+	mobileNumber, err := h.service.GetMobileNumberByPhoneNumberDetail(phoneNumberStr)
 	if err != nil {
-		if errors.Is(err, services.ErrMobileNumberNotFound) { // 假设 service 层会定义这个错误
+		if errors.Is(err, services.ErrMobileNumberNotFound) {
 			utils.RespondNotFoundError(c, "手机号码")
 		} else {
 			utils.RespondInternalServerError(c, "获取手机号码详情失败", err.Error())
@@ -223,27 +225,28 @@ func parseUint(idStr string) (uint, error) {
 }
 
 // UpdateMobileNumber godoc
-// @Summary 更新指定ID的手机号码信息
-// @Description 更新指定ID的手机号码信息 (主要用于更新状态、供应商、备注)。当号码状态变更为"已注销"时，自动记录注销时间。
+// @Summary 更新指定手机号码的信息
+// @Description 更新指定手机号码的信息 (主要用于更新状态、供应商、备注)。当号码状态变更为"已注销"时，自动记录注销时间。
 // @Tags MobileNumbers
 // @Accept json
 // @Produce json
-// @Param id path uint true "手机号码ID"
+// @Param phoneNumber path string true "手机号码字符串"
 // @Param mobileNumberUpdate body models.MobileNumberUpdatePayload true "要更新的手机号码字段"
 // @Success 200 {object} utils.SuccessResponse{data=models.MobileNumber} "更新后的号码对象"
-// @Failure 400 {object} utils.APIErrorResponse "请求参数错误或数据校验失败 / 无效的ID格式 / 没有提供任何更新字段"
+// @Failure 400 {object} utils.APIErrorResponse "请求参数错误或数据校验失败 / 没有提供任何更新字段"
 // @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
 // @Failure 404 {object} utils.APIErrorResponse "号码未找到"
 // @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
-// @Router /mobilenumbers/{id}/update [post]
+// @Router /mobilenumbers/{phoneNumber}/update [post]
 // @Security BearerAuth
 func (h *MobileNumberHandler) UpdateMobileNumber(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := parseUint(idStr)
-	if err != nil {
-		utils.RespondAPIError(c, http.StatusBadRequest, "无效的ID格式", err.Error())
-		return
-	}
+	phoneNumberStr := c.Param("phoneNumber") // 读取 phoneNumber 字符串
+	//不再需要 parseUint
+	// id, err := parseUint(idStr)
+	// if err != nil {
+	// 	utils.RespondAPIError(c, http.StatusBadRequest, "无效的ID格式", err.Error())
+	// 	return
+	// }
 
 	var payload models.MobileNumberUpdatePayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
@@ -251,13 +254,13 @@ func (h *MobileNumberHandler) UpdateMobileNumber(c *gin.Context) {
 		return
 	}
 
-	// 校验是否至少提供了一个可更新的字段
 	if payload.Status == nil && payload.Vendor == nil && payload.Remarks == nil {
 		utils.RespondAPIError(c, http.StatusBadRequest, "没有提供任何有效的更新字段", nil)
 		return
 	}
 
-	updatedMobileNumber, err := h.service.UpdateMobileNumber(id, payload)
+	// 假设服务层有 UpdateMobileNumberByPhoneNumber 方法
+	updatedMobileNumber, err := h.service.UpdateMobileNumberByPhoneNumber(phoneNumberStr, payload)
 	if err != nil {
 		if errors.Is(err, services.ErrMobileNumberNotFound) {
 			utils.RespondNotFoundError(c, "手机号码")
@@ -279,28 +282,29 @@ type MobileNumberAssignPayload struct {
 }
 
 // AssignMobileNumber godoc
-// @Summary 将指定ID的手机号码分配给一个员工
+// @Summary 将指定手机号码分配给一个员工
 // @Description 校验目标号码是否为"闲置"状态，目标员工是否为"在职"状态。更新号码记录，关联当前使用人员工ID，将号码状态改为"在用"。创建一条新的号码使用历史记录。
 // @Tags MobileNumbers
 // @Accept json
 // @Produce json
-// @Param id path uint true "手机号码ID"
+// @Param phoneNumber path string true "手机号码字符串"
 // @Param assignPayload body models.MobileNumberAssignPayload true "分配信息 (员工业务工号和分配日期 YYYY-MM-DD)"
 // @Success 200 {object} utils.SuccessResponse{data=models.MobileNumber} "成功分配后的号码对象"
-// @Failure 400 {object} utils.APIErrorResponse "请求参数错误 / 无效的ID格式 / 无效的日期格式"
+// @Failure 400 {object} utils.APIErrorResponse "请求参数错误 / 无效的日期格式"
 // @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
 // @Failure 404 {object} utils.APIErrorResponse "手机号码或目标员工工号未找到"
 // @Failure 409 {object} utils.APIErrorResponse "操作冲突 (例如：号码非闲置，员工非在职)"
 // @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
-// @Router /mobilenumbers/{id}/assign [post]
+// @Router /mobilenumbers/{phoneNumber}/assign [post]
 // @Security BearerAuth
 func (h *MobileNumberHandler) AssignMobileNumber(c *gin.Context) {
-	idStr := c.Param("id")
-	numberID, err := parseUint(idStr)
-	if err != nil {
-		utils.RespondAPIError(c, http.StatusBadRequest, "无效的手机号码ID格式", err.Error())
-		return
-	}
+	phoneNumberStr := c.Param("phoneNumber") // 从 :phoneNumber 获取
+	//不再需要解析为 uint
+	// numberID, err := parseUint(idStr)
+	// if err != nil {
+	// 	utils.RespondAPIError(c, http.StatusBadRequest, "无效的手机号码ID格式", err.Error())
+	// 	return
+	// }
 
 	var payload models.MobileNumberAssignPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
@@ -314,7 +318,8 @@ func (h *MobileNumberHandler) AssignMobileNumber(c *gin.Context) {
 		return
 	}
 
-	assignedMobileNumber, err := h.service.AssignMobileNumber(numberID, payload.EmployeeID, assignmentDate)
+	// 调用服务层，传递 phoneNumberStr 而不是 numberID
+	assignedMobileNumber, err := h.service.AssignMobileNumber(phoneNumberStr, payload.EmployeeID, assignmentDate)
 	if err != nil {
 		switch {
 		case errors.Is(err, services.ErrMobileNumberNotFound):
@@ -335,42 +340,37 @@ func (h *MobileNumberHandler) AssignMobileNumber(c *gin.Context) {
 }
 
 // UnassignMobileNumber godoc
-// @Summary 从当前使用人处回收指定ID的手机号码
+// @Summary 从当前使用人处回收指定手机号码
 // @Description 校验目标号码是否为"在用"状态。更新号码记录，清空当前使用人员工ID，将号码状态改为"闲置"。更新上一条与该号码和使用人相关的号码使用历史记录，记录使用结束时间。
 // @Tags MobileNumbers
 // @Accept json
 // @Produce json
-// @Param id path uint true "手机号码ID"
+// @Param phoneNumber path string true "手机号码字符串"
 // @Param unassignPayload body models.MobileNumberUnassignPayload false "回收信息 (可选，包含回收日期 YYYY-MM-DD)"
 // @Success 200 {object} utils.SuccessResponse{data=models.MobileNumber} "成功回收后的号码对象"
-// @Failure 400 {object} utils.APIErrorResponse "请求参数错误 / 无效的ID格式 / 无效的日期格式"
+// @Failure 400 {object} utils.APIErrorResponse "请求参数错误 / 无效的日期格式"
 // @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
 // @Failure 404 {object} utils.APIErrorResponse "手机号码未找到"
 // @Failure 409 {object} utils.APIErrorResponse "操作冲突 (例如：号码非在用状态，或未找到有效的分配记录)"
 // @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
-// @Router /mobilenumbers/{id}/unassign [post]
+// @Router /mobilenumbers/{phoneNumber}/unassign [post]
 // @Security BearerAuth
 func (h *MobileNumberHandler) UnassignMobileNumber(c *gin.Context) {
-	idStr := c.Param("id")
-	numberID, err := parseUint(idStr)
-	if err != nil {
-		utils.RespondAPIError(c, http.StatusBadRequest, "无效的手机号码ID格式", err.Error())
-		return
-	}
+	phoneNumberStr := c.Param("phoneNumber") // 读取 phoneNumber 字符串
+	//不再需要 parseUint
+	// numberID, err := parseUint(idStr)
+	// if err != nil {
+	// 	utils.RespondAPIError(c, http.StatusBadRequest, "无效的手机号码ID格式", err.Error())
+	// 	return
+	// }
 
 	var payload models.MobileNumberUnassignPayload
-	// 请求体是可选的，所以即使绑定失败（比如空body），也不一定是错误，除非有内容但格式不对
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		// 检查是否因为空body导致的EOF错误，如果是，可以忽略，因为payload是可选的
-		// 对于其他绑定错误，则报告为校验错误
-		// 然而，gin 的 ShouldBindJSON 对空 body 且字段非必需时不会报错。如果 ReclaimDate 有 binding:"required" 才会。
-		// 当前 ReclaimDate 是 omitempty,datetime，所以空 body 或空 reclaimDate 字符串是允许的。
-		// 但如果提供了 reclaimDate 但格式不对，会在这里出错。
 		utils.RespondValidationError(c, err.Error())
 		return
 	}
 
-	reclaimDate := time.Now() // 默认使用当前时间
+	reclaimDate := time.Now()
 	if payload.ReclaimDate != "" {
 		parsedDate, err := time.Parse("2006-01-02", payload.ReclaimDate)
 		if err != nil {
@@ -380,17 +380,18 @@ func (h *MobileNumberHandler) UnassignMobileNumber(c *gin.Context) {
 		reclaimDate = parsedDate
 	}
 
-	unassignedMobileNumber, err := h.service.UnassignMobileNumber(numberID, reclaimDate)
+	// 假设服务层有 UnassignMobileNumberByPhoneNumber 方法
+	unassignedMobileNumber, err := h.service.UnassignMobileNumberByPhoneNumber(phoneNumberStr, reclaimDate)
 	if err != nil {
 		switch {
 		case errors.Is(err, services.ErrMobileNumberNotFound):
 			utils.RespondNotFoundError(c, "手机号码")
 		case errors.Is(err, repositories.ErrMobileNumberNotInUseStatus):
-			utils.RespondAPIError(c, http.StatusConflict, "手机号码不是在用状态，无法回收", err.Error()) // 409 Conflict
+			utils.RespondAPIError(c, http.StatusConflict, "手机号码不是在用状态，无法回收", err.Error())
 		case errors.Is(err, repositories.ErrNoActiveUsageHistoryFound):
-			utils.RespondAPIError(c, http.StatusConflict, "未找到该号码当前有效的分配记录，无法回收", err.Error()) // 409 Conflict
+			utils.RespondAPIError(c, http.StatusConflict, "未找到该号码当前有效的分配记录，无法回收", err.Error())
 		case strings.Contains(err.Error(), "数据不一致：在用号码没有关联当前用户"):
-			utils.RespondAPIError(c, http.StatusInternalServerError, "服务器内部错误: 数据不一致", err.Error()) // 500 for data inconsistency
+			utils.RespondAPIError(c, http.StatusInternalServerError, "服务器内部错误: 数据不一致", err.Error())
 		default:
 			utils.RespondInternalServerError(c, "回收手机号码失败", err.Error())
 		}

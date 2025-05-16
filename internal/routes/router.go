@@ -52,11 +52,11 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			mobileNumbersGroup.POST("/", mobileNumberHandler.CreateMobileNumber)
 			// GET /api/v1/mobilenumbers/
 			mobileNumbersGroup.GET("/", mobileNumberHandler.GetMobileNumbers)
-			// GET /api/v1/mobilenumbers/:id
-			mobileNumbersGroup.GET("/:id", mobileNumberHandler.GetMobileNumberByID)
-			mobileNumbersGroup.POST("/:id/update", mobileNumberHandler.UpdateMobileNumber)
-			mobileNumbersGroup.POST("/:id/assign", mobileNumberHandler.AssignMobileNumber)
-			mobileNumbersGroup.POST("/:id/unassign", mobileNumberHandler.UnassignMobileNumber)
+			// GET /api/v1/mobilenumbers/:phoneNumber
+			mobileNumbersGroup.GET("/:phoneNumber", mobileNumberHandler.GetMobileNumberByID)
+			mobileNumbersGroup.POST("/:phoneNumber/update", mobileNumberHandler.UpdateMobileNumber)
+			mobileNumbersGroup.POST("/:phoneNumber/assign", mobileNumberHandler.AssignMobileNumber)
+			mobileNumbersGroup.POST("/:phoneNumber/unassign", mobileNumberHandler.UnassignMobileNumber)
 		}
 
 		// --- 员工路由组定义放在后面，但初始化已提前 ---

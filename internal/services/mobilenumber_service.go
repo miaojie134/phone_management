@@ -16,11 +16,13 @@ type MobileNumberService interface {
 	// CreateMobileNumber 的 mobileNumber 参数中已包含 ApplicantEmployeeID (string)
 	CreateMobileNumber(mobileNumber *models.MobileNumber) (*models.MobileNumber, error)
 	GetMobileNumbers(page, limit int, sortBy, sortOrder, search, status, applicantStatus string) ([]models.MobileNumberResponse, int64, error)
-	GetMobileNumberByID(id uint) (*models.MobileNumberResponse, error)
-	UpdateMobileNumber(id uint, payload models.MobileNumberUpdatePayload) (*models.MobileNumber, error)
+	GetMobileNumberByPhoneNumberDetail(phoneNumber string) (*models.MobileNumberResponse, error)
+	UpdateMobileNumberByPhoneNumber(phoneNumber string, payload models.MobileNumberUpdatePayload) (*models.MobileNumber, error)
 	// AssignMobileNumber 的 employeeBusinessID 参数是 string (业务工号)
-	AssignMobileNumber(numberID uint, employeeBusinessID string, assignmentDate time.Time) (*models.MobileNumber, error)
-	UnassignMobileNumber(numberID uint, reclaimDate time.Time) (*models.MobileNumber, error)
+	// 第一个参数从 numberID uint 修改为 phoneNumber string
+	AssignMobileNumber(phoneNumber string, employeeBusinessID string, assignmentDate time.Time) (*models.MobileNumber, error)
+	// UnassignMobileNumber(numberID uint, reclaimDate time.Time) (*models.MobileNumber, error) // 旧方法
+	UnassignMobileNumberByPhoneNumber(phoneNumber string, reclaimDate time.Time) (*models.MobileNumber, error) // 新方法
 }
 
 // mobileNumberService 是 MobileNumberService 的实现
@@ -62,26 +64,32 @@ func (s *mobileNumberService) GetMobileNumbers(page, limit int, sortBy, sortOrde
 	return s.repo.GetMobileNumbers(page, limit, sortBy, sortOrder, search, status, applicantStatus)
 }
 
-// GetMobileNumberByID 处理根据ID获取手机号码详情的业务逻辑
-func (s *mobileNumberService) GetMobileNumberByID(id uint) (*models.MobileNumberResponse, error) {
-	mobileNumber, err := s.repo.GetMobileNumberByID(id)
+// GetMobileNumberByPhoneNumberDetail 处理根据手机号码字符串获取手机号码详情的业务逻辑
+func (s *mobileNumberService) GetMobileNumberByPhoneNumberDetail(phoneNumber string) (*models.MobileNumberResponse, error) {
+	mobileNumberDetail, err := s.repo.GetMobileNumberResponseByPhoneNumber(phoneNumber) // 假设 repo 有此方法
 	if err != nil {
-		// 如果仓库层返回 gorm.ErrRecordNotFound，则转换为业务层定义的 ErrMobileNumberNotFound
-		if errors.Is(err, repositories.ErrRecordNotFound) { // 假设 repo 层会返回这个 gorm 标准错误或自定义错误
+		if errors.Is(err, repositories.ErrRecordNotFound) {
 			return nil, ErrMobileNumberNotFound
 		}
 		return nil, err
 	}
-	return mobileNumber, nil
+	return mobileNumberDetail, nil
 }
 
-// UpdateMobileNumber 处理更新手机号码的业务逻辑
-func (s *mobileNumberService) UpdateMobileNumber(id uint, payload models.MobileNumberUpdatePayload) (*models.MobileNumber, error) {
-	updates := make(map[string]interface{})
+// UpdateMobileNumberByPhoneNumber 处理根据手机号码字符串更新手机号码的业务逻辑
+func (s *mobileNumberService) UpdateMobileNumberByPhoneNumber(phoneNumber string, payload models.MobileNumberUpdatePayload) (*models.MobileNumber, error) {
+	// 0. 通过 phoneNumber 获取 MobileNumber 实体及其 ID
+	mobileNumber, err := s.repo.GetMobileNumberByPhoneNumber(phoneNumber)
+	if err != nil {
+		if errors.Is(err, repositories.ErrRecordNotFound) {
+			return nil, ErrMobileNumberNotFound
+		}
+		return nil, err // 其他数据库错误
+	}
 
+	updates := make(map[string]interface{})
 	if payload.Status != nil {
 		updates["status"] = *payload.Status
-		// 当号码状态变更为"已注销"时，自动记录注销时间。
 		if *payload.Status == string(models.StatusDeactivated) {
 			now := time.Now()
 			updates["cancellation_date"] = &now
@@ -95,42 +103,48 @@ func (s *mobileNumberService) UpdateMobileNumber(id uint, payload models.MobileN
 	}
 
 	if len(updates) == 0 {
-		// 如果没有提供任何要更新的字段，可以返回一个错误或直接返回未修改的记录
-		// 这里选择返回错误，因为API期望至少更新一个字段
 		return nil, errors.New("没有提供任何更新字段")
 	}
 
-	updatedMobileNumber, err := s.repo.UpdateMobileNumber(id, updates)
+	// 使用获取到的 mobileNumber.ID 进行更新
+	updatedMobileNumber, err := s.repo.UpdateMobileNumber(mobileNumber.ID, updates)
 	if err != nil {
-		if errors.Is(err, repositories.ErrRecordNotFound) {
-			return nil, ErrMobileNumberNotFound
-		}
+		// repo.UpdateMobileNumber 内部会处理 ErrRecordNotFound，这里不需要再次转换
+		// 如果发生，通常意味着在 GetMobileNumberByPhoneNumber 和 UpdateMobileNumber 之间记录被删除，是一个竞争条件
 		return nil, err
 	}
-
 	return updatedMobileNumber, nil
 }
 
 // AssignMobileNumber 处理将手机号码分配给员工的业务逻辑
 // employeeBusinessID 是员工的业务工号 (string)
-func (s *mobileNumberService) AssignMobileNumber(numberID uint, employeeBusinessID string, assignmentDate time.Time) (*models.MobileNumber, error) {
+// 第一个参数从 numberID uint 修改为 phoneNumber string
+func (s *mobileNumberService) AssignMobileNumber(phoneNumber string, employeeBusinessID string, assignmentDate time.Time) (*models.MobileNumber, error) {
+	// 0. 通过 phoneNumber 获取 MobileNumber 实体及其 ID
+	mobileNumber, err := s.repo.GetMobileNumberByPhoneNumber(phoneNumber)
+	if err != nil {
+		if errors.Is(err, repositories.ErrRecordNotFound) {
+			return nil, ErrMobileNumberNotFound
+		}
+		return nil, err // 其他数据库错误
+	}
+
 	// 1. 验证 employeeBusinessID (员工业务工号) 是否有效且在职
 	assignee, err := s.employeeService.GetEmployeeByBusinessID(employeeBusinessID)
 	if err != nil {
 		return nil, err // err 可能是 ErrEmployeeNotFound 或其他DB错误
 	}
-	if assignee.EmploymentStatus != "Active" { // 确保员工在职才能分配号码
+	if assignee.EmploymentStatus != "Active" { // 确保员工在职才能分配号码, 直接与字符串 "Active" 比较
 		return nil, repositories.ErrEmployeeNotActive // 复用仓库层的错误，表示员工非在职
 	}
 
-	// employeeBusinessID (string) 直接传递给仓库层
-	// 仓库层 AssignMobileNumber 内部还会再次查询员工以确认状态，这可以视为一种双重保障或允许仓库层独立校验。
-	// 如果希望避免仓库层重复查询员工（因为这里已经查过），可以调整仓库层 AssignMobileNumber 的逻辑。
-	// 但当前保持不变，让仓库层也进行校验。
-	assignedMobileNumber, err := s.repo.AssignMobileNumber(numberID, employeeBusinessID, assignmentDate)
+	// 使用从 phoneNumber 查询到的 mobileNumber.ID 进行分配
+	assignedMobileNumber, err := s.repo.AssignMobileNumber(mobileNumber.ID, employeeBusinessID, assignmentDate)
 	if err != nil {
 		if errors.Is(err, repositories.ErrRecordNotFound) {
 			// 此处的 ErrRecordNotFound 是针对 MobileNumber 的，由 repo.AssignMobileNumber 返回
+			// 理论上，如果 GetMobileNumberByPhoneNumber 成功了，这里不应该发生 ErrRecordNotFound
+			// 但为保险起见，仍做转换
 			return nil, ErrMobileNumberNotFound
 		}
 		// 其他特定错误如 ErrMobileNumberNotInIdleStatus, ErrEmployeeNotFound (如果仓库层校验员工失败)
@@ -140,14 +154,21 @@ func (s *mobileNumberService) AssignMobileNumber(numberID uint, employeeBusiness
 	return assignedMobileNumber, nil
 }
 
-// UnassignMobileNumber 处理从当前用户回收手机号码的业务逻辑
-func (s *mobileNumberService) UnassignMobileNumber(numberID uint, reclaimDate time.Time) (*models.MobileNumber, error) {
-	unassignedMobileNumber, err := s.repo.UnassignMobileNumber(numberID, reclaimDate)
+// UnassignMobileNumberByPhoneNumber 处理根据手机号码字符串从当前用户回收手机号码的业务逻辑
+func (s *mobileNumberService) UnassignMobileNumberByPhoneNumber(phoneNumber string, reclaimDate time.Time) (*models.MobileNumber, error) {
+	// 0. 通过 phoneNumber 获取 MobileNumber 实体及其 ID
+	mobileNumber, err := s.repo.GetMobileNumberByPhoneNumber(phoneNumber)
 	if err != nil {
-		// 错误转换：将仓库层特定的错误转换为服务层或通用的错误
-		if errors.Is(err, repositories.ErrRecordNotFound) { // 号码未找到
+		if errors.Is(err, repositories.ErrRecordNotFound) {
 			return nil, ErrMobileNumberNotFound
 		}
+		return nil, err // 其他数据库错误
+	}
+
+	// 使用获取到的 mobileNumber.ID 进行回收
+	unassignedMobileNumber, err := s.repo.UnassignMobileNumber(mobileNumber.ID, reclaimDate)
+	if err != nil {
+		// repo.UnassignMobileNumber 内部会处理 ErrRecordNotFound，这里不需要再次转换
 		// 其他特定错误如 ErrMobileNumberNotInUseStatus, ErrNoActiveUsageHistoryFound 会直接从 repo 传递上来
 		return nil, err
 	}
