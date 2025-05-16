@@ -14,8 +14,8 @@ var ErrEmployeeNotFound = errors.New("员工未找到")
 type EmployeeService interface {
 	CreateEmployee(employee *models.Employee) (*models.Employee, error)
 	GetEmployees(page, limit int, sortBy, sortOrder, search, employmentStatus string) ([]models.Employee, int64, error)
-	GetEmployeeByID(id uint) (*models.EmployeeDetailResponse, error)
-	GetEmployeeByBusinessID(businessID string) (*models.Employee, error)
+	GetEmployeeDetailByEmployeeID(employeeID string) (*models.EmployeeDetailResponse, error)
+	GetEmployeeByEmployeeID(employeeID string) (*models.Employee, error)
 }
 
 // employeeService 是 EmployeeService 的实现
@@ -51,9 +51,9 @@ func (s *employeeService) GetEmployees(page, limit int, sortBy, sortOrder, searc
 	return s.repo.GetEmployees(page, limit, sortBy, sortOrder, search, employmentStatus)
 }
 
-// GetEmployeeByID 处理根据ID获取员工详情的业务逻辑
-func (s *employeeService) GetEmployeeByID(id uint) (*models.EmployeeDetailResponse, error) {
-	employeeDetail, err := s.repo.GetEmployeeByID(id)
+// GetEmployeeDetailByEmployeeID 处理根据业务工号获取员工详情的业务逻辑
+func (s *employeeService) GetEmployeeDetailByEmployeeID(employeeID string) (*models.EmployeeDetailResponse, error) {
+	employeeDetail, err := s.repo.GetEmployeeDetailByEmployeeID(employeeID)
 	if err != nil {
 		if errors.Is(err, repositories.ErrRecordNotFound) {
 			return nil, ErrEmployeeNotFound // 转为服务层定义的错误
@@ -63,9 +63,9 @@ func (s *employeeService) GetEmployeeByID(id uint) (*models.EmployeeDetailRespon
 	return employeeDetail, nil
 }
 
-// GetEmployeeByBusinessID 处理根据业务工号获取员工的业务逻辑
-func (s *employeeService) GetEmployeeByBusinessID(businessID string) (*models.Employee, error) {
-	employee, err := s.repo.GetEmployeeByBusinessID(businessID)
+// GetEmployeeByEmployeeID 处理根据业务工号获取员工的业务逻辑
+func (s *employeeService) GetEmployeeByEmployeeID(employeeID string) (*models.Employee, error) {
+	employee, err := s.repo.GetEmployeeByEmployeeID(employeeID)
 	if err != nil {
 		if errors.Is(err, repositories.ErrRecordNotFound) {
 			return nil, ErrEmployeeNotFound // 转为服务层定义的错误

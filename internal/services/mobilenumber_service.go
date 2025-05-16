@@ -40,7 +40,7 @@ func NewMobileNumberService(repo repositories.MobileNumberRepository, empService
 // mobileNumber.ApplicantEmployeeID (string) 已经由 handler 层从 payload 设置
 func (s *mobileNumberService) CreateMobileNumber(mobileNumber *models.MobileNumber) (*models.MobileNumber, error) {
 	// 1. 验证 ApplicantEmployeeID (员工业务工号) 是否有效 (即员工是否存在)
-	_, err := s.employeeService.GetEmployeeByBusinessID(mobileNumber.ApplicantEmployeeID)
+	_, err := s.employeeService.GetEmployeeByEmployeeID(mobileNumber.ApplicantEmployeeID)
 	if err != nil {
 		// err 可能是 ErrEmployeeNotFound 或其他DB错误
 		// 如果是 ErrEmployeeNotFound，handler 层会捕获并返回 404
@@ -130,7 +130,7 @@ func (s *mobileNumberService) AssignMobileNumber(phoneNumber string, employeeBus
 	}
 
 	// 1. 验证 employeeBusinessID (员工业务工号) 是否有效且在职
-	assignee, err := s.employeeService.GetEmployeeByBusinessID(employeeBusinessID)
+	assignee, err := s.employeeService.GetEmployeeByEmployeeID(employeeBusinessID)
 	if err != nil {
 		return nil, err // err 可能是 ErrEmployeeNotFound 或其他DB错误
 	}

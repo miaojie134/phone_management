@@ -168,28 +168,24 @@ func parseUintFromString(idStr string) (uint, error) {
 }
 
 // GetEmployeeByID godoc
-// @Summary 获取指定ID的员工详情
-// @Description 根据路径参数ID获取单个员工的完整信息，包含其作为"办卡人"和"当前使用人"的号码简要列表。
+// @Summary 获取指定业务工号的员工详情
+// @Description 根据路径参数员工业务工号获取单个员工的完整信息，包含其作为"办卡人"和"当前使用人"的号码简要列表。
 // @Tags Employees
 // @Accept json
 // @Produce json
-// @Param id path uint true "员工ID"
+// @Param employeeId path string true "员工业务工号"
 // @Success 200 {object} utils.SuccessResponse{data=models.EmployeeDetailResponse} "成功响应，包含员工详情"
-// @Failure 400 {object} utils.APIErrorResponse "无效的ID格式"
+// @Failure 400 {object} utils.APIErrorResponse "无效的员工工号格式 (保留，以防未来有格式校验)"
 // @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
 // @Failure 404 {object} utils.APIErrorResponse "员工未找到"
 // @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
-// @Router /employees/{id} [get]
+// @Router /employees/{employeeId} [get]
 // @Security BearerAuth
 func (h *EmployeeHandler) GetEmployeeByID(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := parseUintFromString(idStr)
-	if err != nil {
-		utils.RespondAPIError(c, http.StatusBadRequest, "无效的员工ID格式", err.Error())
-		return
-	}
+	employeeIdStr := c.Param("employeeId") // 将从 :employeeId 路径参数获取
 
-	employeeDetail, err := h.service.GetEmployeeByID(id)
+	// 调用新的服务层方法
+	employeeDetail, err := h.service.GetEmployeeDetailByEmployeeID(employeeIdStr)
 	if err != nil {
 		if errors.Is(err, services.ErrEmployeeNotFound) {
 			utils.RespondNotFoundError(c, "员工")

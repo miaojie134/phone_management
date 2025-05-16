@@ -65,7 +65,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		{
 			employeeRoutes.POST("/", employeeHandler.CreateEmployee)
 			employeeRoutes.GET("/", employeeHandler.GetEmployees)
-			employeeRoutes.GET("/:id", employeeHandler.GetEmployeeByID)
+			employeeRoutes.GET("/:employeeId", employeeHandler.GetEmployeeByID)
 			// POST /api/v1/employees/:id/update (未来实现)
 			// employeeRoutes.POST("/:id/update", employeeHandler.UpdateEmployee)
 		}
