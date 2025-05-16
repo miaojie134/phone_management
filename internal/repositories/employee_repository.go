@@ -17,6 +17,7 @@ type EmployeeRepository interface {
 	GetEmployees(page, limit int, sortBy, sortOrder, search, employmentStatus string) ([]models.Employee, int64, error)
 	GetEmployeeDetailByEmployeeID(employeeID string) (*models.EmployeeDetailResponse, error)
 	GetEmployeeByEmployeeID(employeeID string) (*models.Employee, error)
+	UpdateEmployee(employeeID string, updates map[string]interface{}) (*models.Employee, error)
 	// 未来可以扩展其他方法，如 GetEmployeeByID, UpdateEmployee, DeleteEmployee 等
 }
 
@@ -169,4 +170,32 @@ func (r *gormEmployeeRepository) GetEmployeeByEmployeeID(employeeID string) (*mo
 		return nil, err // 其他数据库错误
 	}
 	return &employee, nil
+}
+
+// UpdateEmployee 更新指定业务工号的员工信息
+func (r *gormEmployeeRepository) UpdateEmployee(employeeID string, updates map[string]interface{}) (*models.Employee, error) {
+	// 首先，检查员工是否存在，确保我们操作的是一个有效的记录
+	// GetEmployeeByEmployeeID 方法内部已经处理了 ErrRecordNotFound
+	var employee models.Employee
+	if err := r.db.Where("employee_id = ?", employeeID).First(&employee).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrRecordNotFound // 如果员工不存在，返回错误
+		}
+		return nil, err // 其他数据库查询错误
+	}
+
+	// 更新记录
+	// 使用 Model(&models.Employee{}) 指定模型，并通过 Where 更新特定 employee_id 的记录
+	if err := r.db.Model(&models.Employee{}).Where("employee_id = ?", employeeID).Updates(updates).Error; err != nil {
+		return nil, err
+	}
+
+	// 重新查询更新后的记录并返回
+	// 直接使用之前查询到的 employee 变量的指针，并让 GORM 通过其主键刷新
+	// 或者更可靠地，再次通过 employeeID 查询
+	var updatedEmployee models.Employee
+	if err := r.db.Where("employee_id = ?", employeeID).First(&updatedEmployee).Error; err != nil {
+		return nil, err // 理论上此时应该能找到
+	}
+	return &updatedEmployee, nil
 }

@@ -40,3 +40,12 @@ type EmployeeDetailResponse struct {
 	HandledMobileNumbers []MobileNumberBasicInfo `json:"handledMobileNumbers,omitempty"` // 作为办卡人的号码列表
 	UsingMobileNumbers   []MobileNumberBasicInfo `json:"usingMobileNumbers,omitempty"`   // 作为当前使用人的号码列表
 }
+
+// UpdateEmployeePayload 定义了更新员工请求的 JSON 结构体
+// 所有字段都是可选的，因此使用指针类型
+// 这个结构体用于API层的数据绑定和校验，并传递给服务层。
+type UpdateEmployeePayload struct {
+	Department       *string `json:"department,omitempty" binding:"omitempty,max=255"`
+	EmploymentStatus *string `json:"employmentStatus,omitempty" binding:"omitempty,oneof=Active Inactive Departed"` // 校验允许的值
+	TerminationDate  *string `json:"terminationDate,omitempty" binding:"omitempty,datetime=2006-01-02"`             // 日期格式 YYYY-MM-DD
+}

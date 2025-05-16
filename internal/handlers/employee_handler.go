@@ -2,9 +2,8 @@ package handlers
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
-	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/phone_management/internal/models"
@@ -36,6 +35,13 @@ type PagedEmployeesData struct {
 	Items      []models.Employee `json:"items"`
 	Pagination PaginationInfo    `json:"pagination"`
 }
+
+// UpdateEmployeePayload 定义已移至 models 包
+// type UpdateEmployeePayload struct {
+// 	Department       *string `json:"department,omitempty" binding:"omitempty,max=255"`
+// 	EmploymentStatus *string `json:"employmentStatus,omitempty" binding:"omitempty,oneof=Active Inactive Departed"`
+// 	TerminationDate  *string `json:"terminationDate,omitempty" binding:"omitempty,datetime=2006-01-02"`
+// }
 
 // CreateEmployee godoc
 // @Summary 新增一个员工
@@ -157,16 +163,6 @@ func (h *EmployeeHandler) GetEmployees(c *gin.Context) {
 	utils.RespondSuccess(c, http.StatusOK, pagedData, "员工列表获取成功")
 }
 
-// parseUintFromString 是一个辅助函数，用于将字符串ID解析为uint
-// TODO: 考虑将此类通用辅助函数移至共享的 utils 包中，如果多处需要
-func parseUintFromString(idStr string) (uint, error) {
-	val, err := strconv.ParseUint(idStr, 10, 32) // 32表示结果适合uint类型
-	if err != nil {
-		return 0, fmt.Errorf("无法将 '%s' 解析为有效的数字ID: %w", idStr, err)
-	}
-	return uint(val), nil
-}
-
 // GetEmployeeByID godoc
 // @Summary 获取指定业务工号的员工详情
 // @Description 根据路径参数员工业务工号获取单个员工的完整信息，包含其作为"办卡人"和"当前使用人"的号码简要列表。
@@ -196,4 +192,73 @@ func (h *EmployeeHandler) GetEmployeeByID(c *gin.Context) {
 	}
 
 	utils.RespondSuccess(c, http.StatusOK, employeeDetail, "员工详情获取成功")
+}
+
+// UpdateEmployee godoc
+// @Summary 更新指定业务工号的员工信息
+// @Description 根据员工业务工号更新员工的部门、在职状态或离职日期。
+// @Tags Employees
+// @Accept json
+// @Produce json
+// @Param employeeId path string true "员工业务工号"
+// @Param employeeUpdate body models.UpdateEmployeePayload true "要更新的员工字段"
+// @Success 200 {object} utils.SuccessResponse{data=models.Employee} "更新后的员工对象"
+// @Failure 400 {object} utils.APIErrorResponse "请求参数错误或数据校验失败"
+// @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
+// @Failure 404 {object} utils.APIErrorResponse "员工未找到"
+// @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
+// @Router /employees/{employeeId}/update [post]
+// @Security BearerAuth
+func (h *EmployeeHandler) UpdateEmployee(c *gin.Context) {
+	employeeIdStr := c.Param("employeeId")
+
+	var payload models.UpdateEmployeePayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		utils.RespondValidationError(c, err.Error())
+		return
+	}
+
+	// 基本校验：确保至少提供了一个字段进行更新
+	if payload.Department == nil && payload.EmploymentStatus == nil && payload.TerminationDate == nil {
+		utils.RespondAPIError(c, http.StatusBadRequest, "至少需要提供一个更新字段", nil)
+		return
+	}
+
+	// 业务逻辑校验：如果提供了 TerminationDate，EmploymentStatus 必须是 Departed
+	// 或者如果 EmploymentStatus 更新为 Departed，TerminationDate 应该被处理（服务层会处理自动填充）
+	if payload.TerminationDate != nil && *payload.TerminationDate != "" {
+		if payload.EmploymentStatus == nil || (*payload.EmploymentStatus != "Departed" && *payload.EmploymentStatus != "") {
+			// 如果提供了离职日期，但状态不是 Departed (也不是正在被更新为 Departed), 则这是一个无效组合
+			// 除非业务允许仅更新离职日期而不改变状态（这比较少见）
+			// 这里假设：如果提供了 terminationDate，则 employmentStatus 必须是 Departed，或者 payload 中 employmentStatus 也必须是 Departed。
+			// 如果 employmentStatus 为空，但 terminationDate 有值，也视为不合法，因为不知道要不要把状态改为 Departed。
+			// 更简单的处理是，如果 employmentStatus 不是 Departed，则不允许设置 terminationDate。
+			// 若 employmentStatus 在 payload 中为 nil，则看数据库中当前员工状态是否为 Departed （这需要读一次员工信息，handler 层通常不做）
+			// 为了简化 handler，主要的状态转换逻辑放在 service 层。Handler 层只做基本格式和必要组合校验。
+			// 此处改为: 如果 TerminationDate 有值，则 EmploymentStatus 也必须有值且为 Departed。
+			if payload.EmploymentStatus == nil || *payload.EmploymentStatus != "Departed" {
+				utils.RespondAPIError(c, http.StatusBadRequest, "提供离职日期时，在职状态必须是 'Departed'", nil)
+				return
+			}
+		}
+	}
+	// 如果 employmentStatus 更新为非 Departed，则 TerminationDate 不应该有值
+	if payload.EmploymentStatus != nil && *payload.EmploymentStatus != "Departed" && payload.TerminationDate != nil && *payload.TerminationDate != "" {
+		utils.RespondAPIError(c, http.StatusBadRequest, "在职状态不是 'Departed' 时，不应提供离职日期", nil)
+		return
+	}
+
+	updatedEmployee, err := h.service.UpdateEmployee(employeeIdStr, payload) // 服务层接收 models.UpdateEmployeePayload
+	if err != nil {
+		if errors.Is(err, services.ErrEmployeeNotFound) {
+			utils.RespondNotFoundError(c, "员工")
+		} else if err.Error() == "没有提供任何有效的更新字段" || strings.Contains(err.Error(), "无效的离职日期格式") {
+			utils.RespondAPIError(c, http.StatusBadRequest, err.Error(), nil)
+		} else {
+			utils.RespondInternalServerError(c, "更新员工信息失败", err.Error())
+		}
+		return
+	}
+
+	utils.RespondSuccess(c, http.StatusOK, updatedEmployee, "员工信息更新成功")
 }

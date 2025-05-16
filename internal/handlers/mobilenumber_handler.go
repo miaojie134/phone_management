@@ -2,9 +2,7 @@ package handlers
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -212,16 +210,6 @@ func (h *MobileNumberHandler) GetMobileNumberByID(c *gin.Context) {
 	}
 
 	utils.RespondSuccess(c, http.StatusOK, mobileNumber, "手机号码详情获取成功")
-}
-
-// parseUint 是一个辅助函数，用于将字符串ID解析为uint
-// 在实际项目中，这类通用辅助函数可以放在一个共享的 utils 包中
-func parseUint(idStr string) (uint, error) {
-	val, err := strconv.ParseUint(idStr, 10, 32) // 32表示结果适合uint类型
-	if err != nil {
-		return 0, fmt.Errorf("无法将 '%s' 解析为有效的数字ID: %w", idStr, err)
-	}
-	return uint(val), nil
 }
 
 // UpdateMobileNumber godoc

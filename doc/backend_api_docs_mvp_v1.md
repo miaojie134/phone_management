@@ -253,14 +253,14 @@ employmentStatus (可选, string, 'Active'或'Departed'): 在职状态筛选。
 
 响应 (200 OK): 返回员工对象列表及分页信息。
 
-GET /:id
+GET /:employeeId
 描述: 获取指定 ID 的员工详情。
 路径参数: id (员工的数据库 ID )。
 响应 (200 OK): 返回单个员工对象，包含其作为“办卡人”和“当前使用人”的号码简要列表。
 
-POST /:id/update
+POST /:employeeId/update
 描述: 更新指定 ID 的员工信息。
-路径参数: id。
+路径参数: employeeId。
 请求体: (包含要更新的字段)
 {
 "department": "市场部",

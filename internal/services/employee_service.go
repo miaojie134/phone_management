@@ -2,7 +2,9 @@ package services
 
 import (
 	"errors"
+	"time"
 
+	// "github.com/phone_management/internal/handlers" // 移除此导入
 	"github.com/phone_management/internal/models"
 	"github.com/phone_management/internal/repositories"
 )
@@ -16,6 +18,7 @@ type EmployeeService interface {
 	GetEmployees(page, limit int, sortBy, sortOrder, search, employmentStatus string) ([]models.Employee, int64, error)
 	GetEmployeeDetailByEmployeeID(employeeID string) (*models.EmployeeDetailResponse, error)
 	GetEmployeeByEmployeeID(employeeID string) (*models.Employee, error)
+	UpdateEmployee(employeeID string, payload models.UpdateEmployeePayload) (*models.Employee, error)
 }
 
 // employeeService 是 EmployeeService 的实现
@@ -73,4 +76,63 @@ func (s *employeeService) GetEmployeeByEmployeeID(employeeID string) (*models.Em
 		return nil, err
 	}
 	return employee, nil
+}
+
+// UpdateEmployee 处理更新员工信息的业务逻辑
+func (s *employeeService) UpdateEmployee(employeeID string, payload models.UpdateEmployeePayload) (*models.Employee, error) {
+	// 首先，确保员工存在
+	_, err := s.repo.GetEmployeeByEmployeeID(employeeID)
+	if err != nil {
+		if errors.Is(err, repositories.ErrRecordNotFound) {
+			return nil, ErrEmployeeNotFound
+		}
+		return nil, err
+	}
+
+	updates := make(map[string]interface{})
+
+	if payload.Department != nil {
+		updates["department"] = *payload.Department
+	}
+
+	statusUpdated := false
+	if payload.EmploymentStatus != nil {
+		updates["employment_status"] = *payload.EmploymentStatus
+		statusUpdated = true
+		// 如果状态更新为 "Departed"
+		if *payload.EmploymentStatus == "Departed" {
+			if payload.TerminationDate != nil && *payload.TerminationDate != "" {
+				termDate, err := time.Parse("2006-01-02", *payload.TerminationDate)
+				if err != nil {
+					return nil, errors.New("无效的离职日期格式: " + *payload.TerminationDate)
+				}
+				updates["termination_date"] = &termDate
+			} else {
+				// 如果状态是 Departed 但 payload 中没有提供离职日期，则自动设置为当前日期
+				now := time.Now()
+				updates["termination_date"] = &now
+			}
+		} else {
+			// 如果状态更新为非 "Departed" (e.g., "Active", "Inactive"), 则应清除离职日期
+			updates["termination_date"] = nil
+		}
+	}
+
+	if !statusUpdated && payload.TerminationDate != nil {
+		if *payload.TerminationDate == "" {
+			updates["termination_date"] = nil
+		} else {
+			termDate, err := time.Parse("2006-01-02", *payload.TerminationDate)
+			if err != nil {
+				return nil, errors.New("无效的离职日期格式: " + *payload.TerminationDate)
+			}
+			updates["termination_date"] = &termDate
+		}
+	}
+
+	if len(updates) == 0 {
+		return nil, errors.New("没有提供任何有效的更新字段")
+	}
+
+	return s.repo.UpdateEmployee(employeeID, updates)
 }
