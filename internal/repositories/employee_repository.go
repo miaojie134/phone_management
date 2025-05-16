@@ -14,6 +14,7 @@ var ErrEmployeeIDExists = errors.New("员工工号已存在")
 // EmployeeRepository 定义了员工数据仓库的接口
 type EmployeeRepository interface {
 	CreateEmployee(employee *models.Employee) (*models.Employee, error)
+	GetEmployees(page, limit int, sortBy, sortOrder, search, employmentStatus string) ([]models.Employee, int64, error)
 	// 未来可以扩展其他方法，如 GetEmployeeByID, UpdateEmployee, DeleteEmployee 等
 }
 
@@ -51,4 +52,61 @@ func (r *gormEmployeeRepository) CreateEmployee(employee *models.Employee) (*mod
 		return nil, err
 	}
 	return employee, nil
+}
+
+// GetEmployees 从数据库中获取员工列表，支持分页、排序、搜索和筛选
+func (r *gormEmployeeRepository) GetEmployees(page, limit int, sortBy, sortOrder, search, employmentStatus string) ([]models.Employee, int64, error) {
+	var employees []models.Employee
+	var totalItems int64
+
+	tx := r.db.Model(&models.Employee{})
+
+	// 处理搜索条件 (匹配姓名、工号)
+	if search != "" {
+		searchTerm := "%" + search + "%"
+		tx = tx.Where("full_name LIKE ? OR employee_id LIKE ?", searchTerm, searchTerm)
+	}
+
+	// 处理在职状态筛选
+	if employmentStatus != "" {
+		tx = tx.Where("employment_status = ?", employmentStatus)
+	}
+
+	// 计算总数（在应用分页之前）
+	if err := tx.Count(&totalItems).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 处理排序
+	if sortBy != "" {
+		// 白名单校验 sortBy 字段，防止 SQL 注入
+		allowedSortByFields := map[string]string{
+			"employeeId":       "employee_id",
+			"fullName":         "full_name",
+			"department":       "department",
+			"employmentStatus": "employment_status",
+			"hireDate":         "hire_date",
+			"createdAt":        "created_at",
+		}
+		dbSortBy, isValidField := allowedSortByFields[sortBy]
+		if !isValidField {
+			dbSortBy = "created_at" // 如果字段无效，则使用默认排序字段
+		}
+
+		if strings.ToLower(sortOrder) != "desc" {
+			sortOrder = "asc"
+		}
+		tx = tx.Order(dbSortBy + " " + sortOrder)
+	} else {
+		// 默认排序
+		tx = tx.Order("created_at desc")
+	}
+
+	// 处理分页
+	offset := (page - 1) * limit
+	if err := tx.Offset(offset).Limit(limit).Find(&employees).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return employees, totalItems, nil
 }

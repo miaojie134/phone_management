@@ -94,13 +94,6 @@ type PagedMobileNumbersData struct {
 	Pagination PaginationInfo                `json:"pagination"`
 }
 
-type PaginationInfo struct {
-	TotalItems  int64 `json:"totalItems"`
-	TotalPages  int64 `json:"totalPages"`
-	CurrentPage int   `json:"currentPage"`
-	PageSize    int   `json:"pageSize"`
-}
-
 // GetMobileNumbers godoc
 // @Summary 获取手机号码列表
 // @Description 根据查询参数获取手机号码列表，支持分页、搜索和筛选

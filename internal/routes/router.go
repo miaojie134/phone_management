@@ -62,8 +62,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		employeeRoutes.Use(jwtAuthMiddleware) // 对整个 /employees 路由组应用 JWT 中间件
 		{
 			employeeRoutes.POST("/", employeeHandler.CreateEmployee)
-			// GET /api/v1/employees/ (未来实现)
-			// employeeRoutes.GET("/", employeeHandler.GetEmployees)
+			// GET /api/v1/employees/
+			employeeRoutes.GET("/", employeeHandler.GetEmployees)
 			// GET /api/v1/employees/:id (未来实现)
 			// employeeRoutes.GET("/:id", employeeHandler.GetEmployeeByID)
 			// POST /api/v1/employees/:id/update (未来实现)

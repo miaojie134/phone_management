@@ -13,6 +13,7 @@ var ErrEmployeeNotFound = errors.New("员工未找到")
 // EmployeeService 定义了员工服务的接口
 type EmployeeService interface {
 	CreateEmployee(employee *models.Employee) (*models.Employee, error)
+	GetEmployees(page, limit int, sortBy, sortOrder, search, employmentStatus string) ([]models.Employee, int64, error)
 }
 
 // employeeService 是 EmployeeService 的实现
@@ -39,4 +40,11 @@ func (s *employeeService) CreateEmployee(employee *models.Employee) (*models.Emp
 		return nil, err
 	}
 	return createdEmployee, nil
+}
+
+// GetEmployees 处理获取员工列表的业务逻辑
+func (s *employeeService) GetEmployees(page, limit int, sortBy, sortOrder, search, employmentStatus string) ([]models.Employee, int64, error) {
+	// 当前业务逻辑主要是参数传递和调用仓库层
+	// 未来可在这里添加更复杂的业务规则，如数据转换或权限校验等
+	return s.repo.GetEmployees(page, limit, sortBy, sortOrder, search, employmentStatus)
 }
