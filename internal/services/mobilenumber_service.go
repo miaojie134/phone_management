@@ -17,6 +17,7 @@ type MobileNumberService interface {
 	GetMobileNumbers(page, limit int, sortBy, sortOrder, search, status, applicantStatus string) ([]models.MobileNumberResponse, int64, error)
 	GetMobileNumberByID(id uint) (*models.MobileNumberResponse, error)
 	UpdateMobileNumber(id uint, payload models.MobileNumberUpdatePayload) (*models.MobileNumber, error)
+	AssignMobileNumber(numberID uint, employeeID uint, assignmentDate time.Time) (*models.MobileNumber, error)
 }
 
 // mobileNumberService 是 MobileNumberService 的实现
@@ -98,4 +99,23 @@ func (s *mobileNumberService) UpdateMobileNumber(id uint, payload models.MobileN
 	}
 
 	return updatedMobileNumber, nil
+}
+
+// AssignMobileNumber 处理将手机号码分配给员工的业务逻辑
+func (s *mobileNumberService) AssignMobileNumber(numberID uint, employeeID uint, assignmentDate time.Time) (*models.MobileNumber, error) {
+	assignedMobileNumber, err := s.repo.AssignMobileNumber(numberID, employeeID, assignmentDate)
+	if err != nil {
+		// 错误转换：将仓库层特定的错误转换为服务层或通用的错误
+		if errors.Is(err, repositories.ErrRecordNotFound) { // 号码或员工未找到（在仓库层AssignMobileNumber中会区分返回ErrEmployeeNotFound或ErrRecordNotFound for number）
+			// 决定是返回更具体的错误还是统一的"未找到"
+			// 为了清晰，这里可以考虑不在service层再转换 ErrEmployeeNotFound，直接透传
+			// 但如果 ErrRecordNotFound 是针对 mobile number 的，则转换为 ErrMobileNumberNotFound
+			// 鉴于 repo.AssignMobileNumber 返回的 ErrRecordNotFound 是针对 MobileNumber 的，所以转换为 ErrMobileNumberNotFound
+			// 而 ErrEmployeeNotFound, ErrMobileNumberNotInIdleStatus, ErrEmployeeNotActive 会直接从repo透传过来
+			return nil, ErrMobileNumberNotFound
+		}
+		// 其他特定错误如 ErrMobileNumberNotInIdleStatus, ErrEmployeeNotFound, ErrEmployeeNotActive 会直接从 repo 传递上来
+		return nil, err
+	}
+	return assignedMobileNumber, nil
 }

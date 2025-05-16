@@ -274,3 +274,59 @@ func (h *MobileNumberHandler) UpdateMobileNumber(c *gin.Context) {
 
 	utils.RespondSuccess(c, http.StatusOK, updatedMobileNumber, "手机号码更新成功")
 }
+
+// AssignMobileNumber godoc
+// @Summary 将指定ID的手机号码分配给一个员工
+// @Description 校验目标号码是否为"闲置"状态，目标员工是否为"在职"状态。更新号码记录，关联当前使用人员工ID，将号码状态改为"在用"。创建一条新的号码使用历史记录。
+// @Tags MobileNumbers
+// @Accept json
+// @Produce json
+// @Param id path uint true "手机号码ID"
+// @Param assignPayload body models.MobileNumberAssignPayload true "分配信息 (员工ID和分配日期 YYYY-MM-DD)"
+// @Success 200 {object} utils.SuccessResponse{data=models.MobileNumber} "成功分配后的号码对象"
+// @Failure 400 {object} utils.APIErrorResponse "请求参数错误 / 无效的ID格式 / 无效的日期格式"
+// @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
+// @Failure 404 {object} utils.APIErrorResponse "手机号码或员工未找到"
+// @Failure 409 {object} utils.APIErrorResponse "操作冲突 (例如：号码非闲置，员工非在职)"
+// @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
+// @Router /mobilenumbers/{id}/assign [post]
+// @Security BearerAuth
+func (h *MobileNumberHandler) AssignMobileNumber(c *gin.Context) {
+	idStr := c.Param("id")
+	numberID, err := parseUint(idStr)
+	if err != nil {
+		utils.RespondAPIError(c, http.StatusBadRequest, "无效的手机号码ID格式", err.Error())
+		return
+	}
+
+	var payload models.MobileNumberAssignPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		utils.RespondValidationError(c, err.Error())
+		return
+	}
+
+	assignmentDate, err := time.Parse("2006-01-02", payload.AssignmentDate)
+	if err != nil {
+		utils.RespondAPIError(c, http.StatusBadRequest, "分配日期格式无效，请使用 YYYY-MM-DD", err.Error())
+		return
+	}
+
+	assignedMobileNumber, err := h.service.AssignMobileNumber(numberID, payload.EmployeeID, assignmentDate)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrMobileNumberNotFound):
+			utils.RespondNotFoundError(c, "手机号码")
+		case errors.Is(err, repositories.ErrEmployeeNotFound):
+			utils.RespondAPIError(c, http.StatusNotFound, "目标员工未找到", err.Error()) // 404 for employee not found
+		case errors.Is(err, repositories.ErrMobileNumberNotInIdleStatus):
+			utils.RespondAPIError(c, http.StatusConflict, "手机号码不是闲置状态，无法分配", err.Error()) // 409 Conflict
+		case errors.Is(err, repositories.ErrEmployeeNotActive):
+			utils.RespondAPIError(c, http.StatusConflict, "目标员工不是在职状态，无法分配", err.Error()) // 409 Conflict
+		default:
+			utils.RespondInternalServerError(c, "分配手机号码失败", err.Error())
+		}
+		return
+	}
+
+	utils.RespondSuccess(c, http.StatusOK, assignedMobileNumber, "手机号码分配成功")
+}

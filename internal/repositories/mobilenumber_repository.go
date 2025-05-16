@@ -3,6 +3,7 @@ package repositories
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/phone_management/internal/models"
 	"gorm.io/gorm"
@@ -14,6 +15,11 @@ var ErrPhoneNumberExists = errors.New("手机号码已存在")
 // ErrRecordNotFound 表示记录未找到，可以重用 gorm 的错误或自定义
 var ErrRecordNotFound = gorm.ErrRecordNotFound
 
+// New errors for assign operation
+var ErrMobileNumberNotInIdleStatus = errors.New("手机号码不是闲置状态")
+var ErrEmployeeNotFound = errors.New("员工未找到")
+var ErrEmployeeNotActive = errors.New("员工不是在职状态")
+
 // MobileNumberRepository 定义了手机号码数据仓库的接口
 type MobileNumberRepository interface {
 	CreateMobileNumber(mobileNumber *models.MobileNumber) (*models.MobileNumber, error)
@@ -21,6 +27,7 @@ type MobileNumberRepository interface {
 	GetMobileNumberByID(id uint) (*models.MobileNumberResponse, error)
 	//未来可以扩展其他方法，如 GetByPhoneNumber, Update, Delete 等
 	UpdateMobileNumber(id uint, updates map[string]interface{}) (*models.MobileNumber, error)
+	AssignMobileNumber(numberID uint, employeeID uint, assignmentDate time.Time) (*models.MobileNumber, error)
 }
 
 // gormMobileNumberRepository 是 MobileNumberRepository 的 GORM 实现
@@ -211,5 +218,70 @@ func (r *gormMobileNumberRepository) UpdateMobileNumber(id uint, updates map[str
 		return nil, err // 理论上此时应该能找到
 	}
 
+	return &mobileNumber, nil
+}
+
+// AssignMobileNumber 将手机号码分配给员工
+func (r *gormMobileNumberRepository) AssignMobileNumber(numberID uint, employeeID uint, assignmentDate time.Time) (*models.MobileNumber, error) {
+	var mobileNumber models.MobileNumber
+	var employee models.Employee
+
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		// 1. 查找并锁定手机号码记录
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&mobileNumber, numberID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrRecordNotFound // 使用仓库层已定义的错误
+			}
+			return err
+		}
+
+		// 2. 校验号码是否为"闲置"状态
+		if mobileNumber.Status != string(models.StatusIdle) {
+			return ErrMobileNumberNotInIdleStatus
+		}
+
+		// 3. 查找员工记录
+		if err := tx.First(&employee, employeeID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrEmployeeNotFound
+			}
+			return err
+		}
+
+		// 4. 校验员工是否为"在职"状态
+		// 假设员工模型中 EmploymentStatus 'Active' 表示在职
+		if employee.EmploymentStatus != "Active" { // TODO: Consider using a constant for "Active" status if defined elsewhere
+			return ErrEmployeeNotActive
+		}
+
+		// 5. 更新号码记录
+		mobileNumber.CurrentEmployeeDbID = &employeeID
+		mobileNumber.Status = string(models.StatusInUse)
+		if err := tx.Save(&mobileNumber).Error; err != nil {
+			return err
+		}
+
+		// 6. 创建一条新的号码使用历史记录
+		usageHistory := models.NumberUsageHistory{
+			MobileNumberDbID: int64(numberID), // GORM 会自动处理类型转换，但明确类型更好
+			EmployeeDbID:     int64(employeeID),
+			StartDate:        assignmentDate,
+		}
+		if err := tx.Create(&usageHistory).Error; err != nil {
+			return err
+		}
+
+		return nil // 事务成功
+	})
+
+	if err != nil {
+		return nil, err // 返回事务中发生的任何错误
+	}
+
+	// 成功后，返回更新后的手机号码信息（可以重新查询以获取最新关联数据，但此处直接返回事务中修改的对象）
+	// 为了确保返回的数据是最新的，尤其是如果 NumberUsageHistory 需要被嵌入，最好重新查询
+	// 但基于 API 文档，返回更新后的号码对象即可，当前 mobileNumber 对象已更新。
+	// 如果需要返回包含办卡人姓名等，则需要重新调用 GetMobileNumberByID 或类似方法。
+	// 但 Assign 操作本身返回的是 MobileNumber 模型。
 	return &mobileNumber, nil
 }

@@ -49,7 +49,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			// GET /api/v1/mobilenumbers/:id
 			mobileNumbersGroup.GET("/:id", mobileNumberHandler.GetMobileNumberByID)
 			mobileNumbersGroup.POST("/:id/update", mobileNumberHandler.UpdateMobileNumber)
-			// mobileNumbersGroup.POST("/:id/assign", mobileNumberHandler.AssignMobileNumber)
+			mobileNumbersGroup.POST("/:id/assign", mobileNumberHandler.AssignMobileNumber)
 			// mobileNumbersGroup.POST("/:id/unassign", mobileNumberHandler.UnassignMobileNumber)
 		}
 

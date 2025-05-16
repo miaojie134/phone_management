@@ -65,4 +65,7 @@ type MobileNumberUpdatePayload struct {
 }
 
 // MobileNumberAssignPayload 定义了分配号码的请求体
-// ... existing code ...
+type MobileNumberAssignPayload struct {
+	EmployeeID     uint   `json:"employeeId" binding:"required"`                         // 目标使用人员工 ID
+	AssignmentDate string `json:"assignmentDate" binding:"required,datetime=2006-01-02"` // 分配日期，格式 YYYY-MM-DD
+}
