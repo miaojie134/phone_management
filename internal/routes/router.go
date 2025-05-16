@@ -53,17 +53,22 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			mobileNumbersGroup.POST("/:id/unassign", mobileNumberHandler.UnassignMobileNumber)
 		}
 
-		// --- 员工路由 (示例) ---
-		// employeeRepo := repositories.NewGormEmployeeRepository(db)
-		// employeeService := services.NewEmployeeService(employeeRepo)
-		// employeeHandler := handlers.NewEmployeeHandler(employeeService)
-		//
-		// employeeRoutes := apiV1.Group("/employees")
-		// employeeRoutes.Use(jwtAuthMiddleware)
-		// {
-		// // employeeRoutes.POST("/", employeeHandler.CreateEmployee)
-		// // employeeRoutes.GET("/", employeeHandler.GetEmployees)
-		// }
+		// --- 员工路由 ---
+		employeeRepo := repositories.NewGormEmployeeRepository(db)
+		employeeService := services.NewEmployeeService(employeeRepo)
+		employeeHandler := handlers.NewEmployeeHandler(employeeService)
+
+		employeeRoutes := apiV1.Group("/employees")
+		employeeRoutes.Use(jwtAuthMiddleware) // 对整个 /employees 路由组应用 JWT 中间件
+		{
+			employeeRoutes.POST("/", employeeHandler.CreateEmployee)
+			// GET /api/v1/employees/ (未来实现)
+			// employeeRoutes.GET("/", employeeHandler.GetEmployees)
+			// GET /api/v1/employees/:id (未来实现)
+			// employeeRoutes.GET("/:id", employeeHandler.GetEmployeeByID)
+			// POST /api/v1/employees/:id/update (未来实现)
+			// employeeRoutes.POST("/:id/update", employeeHandler.UpdateEmployee)
+		}
 
 		// 示例：其他需要JWT认证的路由组 (如 auth_routes.go 中曾有的 /data/me 示例)
 		/*
