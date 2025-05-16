@@ -11,10 +11,14 @@ import (
 // ErrPhoneNumberExists 表示手机号码已存在
 var ErrPhoneNumberExists = errors.New("手机号码已存在")
 
+// ErrRecordNotFound 表示记录未找到，可以重用 gorm 的错误或自定义
+var ErrRecordNotFound = gorm.ErrRecordNotFound
+
 // MobileNumberRepository 定义了手机号码数据仓库的接口
 type MobileNumberRepository interface {
 	CreateMobileNumber(mobileNumber *models.MobileNumber) (*models.MobileNumber, error)
 	GetMobileNumbers(page, limit int, sortBy, sortOrder, search, status, applicantStatus string) ([]models.MobileNumberResponse, int64, error)
+	GetMobileNumberByID(id uint) (*models.MobileNumberResponse, error)
 	//未来可以扩展其他方法，如 GetByPhoneNumber, Update, Delete 等
 }
 
@@ -135,4 +139,50 @@ func (r *gormMobileNumberRepository) GetMobileNumbers(page, limit int, sortBy, s
 	}
 
 	return mobileNumbers, totalItems, nil
+}
+
+// GetMobileNumberByID 从数据库中获取指定ID的手机号码详情及其使用历史
+func (r *gormMobileNumberRepository) GetMobileNumberByID(id uint) (*models.MobileNumberResponse, error) {
+	var mobileNumberDetail models.MobileNumberResponse
+
+	// 1. 获取手机号码基本信息并关联办卡人和当前使用人姓名及办卡人状态
+	tx := r.db.Model(&models.MobileNumber{}).
+		Select(
+			"mobile_numbers.id AS id",
+			"mobile_numbers.phone_number AS phone_number",
+			"mobile_numbers.applicant_employee_db_id AS applicant_employee_db_id",
+			"applicant.full_name AS applicant_name",
+			"applicant.employment_status AS applicant_status",
+			"mobile_numbers.application_date AS application_date",
+			"mobile_numbers.current_employee_db_id AS current_employee_db_id",
+			"current_user.full_name AS current_user_name",
+			"mobile_numbers.status AS status",
+			"mobile_numbers.vendor AS vendor",
+			"mobile_numbers.remarks AS remarks",
+			"mobile_numbers.cancellation_date AS cancellation_date",
+			"mobile_numbers.created_at AS created_at",
+			"mobile_numbers.updated_at AS updated_at",
+		).
+		Joins("LEFT JOIN employees AS applicant ON applicant.id = mobile_numbers.applicant_employee_db_id").
+		Joins("LEFT JOIN employees AS current_user ON current_user.id = mobile_numbers.current_employee_db_id").
+		Where("mobile_numbers.id = ?", id).
+		First(&mobileNumberDetail)
+
+	if tx.Error != nil {
+		if errors.Is(tx.Error, gorm.ErrRecordNotFound) {
+			return nil, ErrRecordNotFound // 返回仓库层定义的 ErrRecordNotFound
+		}
+		return nil, tx.Error
+	}
+
+	// 2. 获取该号码的使用历史
+	var usageHistory []models.NumberUsageHistory
+	if err := r.db.Where("mobile_number_db_id = ?", id).Order("start_date desc").Find(&usageHistory).Error; err != nil {
+		// 如果获取使用历史失败，可以根据业务决定是返回错误还是仅记录日志并返回部分数据
+		// 这里选择返回错误
+		return nil, err
+	}
+	mobileNumberDetail.UsageHistory = usageHistory
+
+	return &mobileNumberDetail, nil
 }

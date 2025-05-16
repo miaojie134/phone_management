@@ -1,14 +1,20 @@
 package services
 
 import (
+	"errors"
+
 	"github.com/phone_management/internal/models"
 	"github.com/phone_management/internal/repositories"
 )
+
+// ErrMobileNumberNotFound 表示手机号码未找到的错误
+var ErrMobileNumberNotFound = errors.New("手机号码未找到")
 
 // MobileNumberService 定义了手机号码服务的接口
 type MobileNumberService interface {
 	CreateMobileNumber(mobileNumber *models.MobileNumber) (*models.MobileNumber, error)
 	GetMobileNumbers(page, limit int, sortBy, sortOrder, search, status, applicantStatus string) ([]models.MobileNumberResponse, int64, error)
+	GetMobileNumberByID(id uint) (*models.MobileNumberResponse, error)
 }
 
 // mobileNumberService 是 MobileNumberService 的实现
@@ -41,4 +47,17 @@ func (s *mobileNumberService) GetMobileNumbers(page, limit int, sortBy, sortOrde
 	// 当前业务逻辑主要是参数传递和调用仓库层
 	// 未来可在这里添加更复杂的业务规则
 	return s.repo.GetMobileNumbers(page, limit, sortBy, sortOrder, search, status, applicantStatus)
+}
+
+// GetMobileNumberByID 处理根据ID获取手机号码详情的业务逻辑
+func (s *mobileNumberService) GetMobileNumberByID(id uint) (*models.MobileNumberResponse, error) {
+	mobileNumber, err := s.repo.GetMobileNumberByID(id)
+	if err != nil {
+		// 如果仓库层返回 gorm.ErrRecordNotFound，则转换为业务层定义的 ErrMobileNumberNotFound
+		if errors.Is(err, repositories.ErrRecordNotFound) { // 假设 repo 层会返回这个 gorm 标准错误或自定义错误
+			return nil, ErrMobileNumberNotFound
+		}
+		return nil, err
+	}
+	return mobileNumber, nil
 }

@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -177,4 +179,48 @@ func (h *MobileNumberHandler) GetMobileNumbers(c *gin.Context) {
 	}
 
 	utils.RespondSuccess(c, http.StatusOK, pagedData, "手机号码列表获取成功")
+}
+
+// GetMobileNumberByID godoc
+// @Summary 获取指定ID的手机号码详情
+// @Description 根据路径参数ID获取单个手机号码的完整信息，包括其使用历史。
+// @Tags MobileNumbers
+// @Accept json
+// @Produce json
+// @Param id path uint true "手机号码ID"
+// @Success 200 {object} utils.SuccessResponse{data=models.MobileNumberResponse} "成功响应，包含号码详情及其使用历史"
+// @Failure 400 {object} utils.APIErrorResponse "无效的ID格式"
+// @Failure 404 {object} utils.APIErrorResponse "号码未找到"
+// @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
+// @Router /mobilenumbers/{id} [get]
+// @Security BearerAuth
+func (h *MobileNumberHandler) GetMobileNumberByID(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := parseUint(idStr) // 需要一个辅助函数来解析 uint
+	if err != nil {
+		utils.RespondAPIError(c, http.StatusBadRequest, "无效的ID格式", err.Error())
+		return
+	}
+
+	mobileNumber, err := h.service.GetMobileNumberByID(id)
+	if err != nil {
+		if errors.Is(err, services.ErrMobileNumberNotFound) { // 假设 service 层会定义这个错误
+			utils.RespondNotFoundError(c, "手机号码")
+		} else {
+			utils.RespondInternalServerError(c, "获取手机号码详情失败", err.Error())
+		}
+		return
+	}
+
+	utils.RespondSuccess(c, http.StatusOK, mobileNumber, "手机号码详情获取成功")
+}
+
+// parseUint 是一个辅助函数，用于将字符串ID解析为uint
+// 在实际项目中，这类通用辅助函数可以放在一个共享的 utils 包中
+func parseUint(idStr string) (uint, error) {
+	val, err := strconv.ParseUint(idStr, 10, 32) // 32表示结果适合uint类型
+	if err != nil {
+		return 0, fmt.Errorf("无法将 '%s' 解析为有效的数字ID: %w", idStr, err)
+	}
+	return uint(val), nil
 }

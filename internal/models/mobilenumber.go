@@ -27,7 +27,7 @@ type MobileNumber struct {
 	Status                string         `json:"status" gorm:"not null" binding:"required,oneof=闲置 在用 待注销 已注销 待核实-办卡人离职"`   // 号码状态，添加 binding 和 oneof
 	Vendor                string         `json:"vendor" binding:"max=100"`                                                  // 供应商
 	Remarks               string         `json:"remarks" binding:"max=255"`                                                 // 备注
-	CancellationDate      *time.Time     `json:"cancellationDate" binding:"omitempty,time_format=2006-01-02"`               // 修正：time_format 合并到 binding 标签
+	CancellationDate      *time.Time     `json:"cancellationDate" binding:"omitempty,time_format=2006-01-02"`               // 注销日期
 	CreatedAt             time.Time      `json:"createdAt" gorm:"autoCreateTime"`
 	UpdatedAt             time.Time      `json:"updatedAt" gorm:"autoUpdateTime"`
 	DeletedAt             gorm.DeletedAt `json:"deletedAt,omitempty" gorm:"index"`
@@ -40,18 +40,19 @@ func (MobileNumber) TableName() string {
 
 // MobileNumberResponse 是用于 API 响应的手机号码数据结构，包含关联信息
 type MobileNumberResponse struct {
-	ID                    uint       `json:"id"`
-	PhoneNumber           string     `json:"phoneNumber"`
-	ApplicantEmployeeDbID uint       `json:"applicantEmployeeId"`
-	ApplicantName         string     `json:"applicantName,omitempty"`   // 办卡人姓名
-	ApplicantStatus       string     `json:"applicantStatus,omitempty"` // 办卡人当前在职状态
-	ApplicationDate       time.Time  `json:"applicationDate"`
-	CurrentEmployeeDbID   *uint      `json:"currentEmployeeDbId,omitempty"`
-	CurrentUserName       string     `json:"currentUserName,omitempty"` // 当前使用人姓名
-	Status                string     `json:"status"`
-	Vendor                string     `json:"vendor,omitempty"`
-	Remarks               string     `json:"remarks,omitempty"`
-	CancellationDate      *time.Time `json:"cancellationDate,omitempty"`
-	CreatedAt             time.Time  `json:"createdAt"`
-	UpdatedAt             time.Time  `json:"updatedAt"`
+	ID                    uint                 `json:"id"`
+	PhoneNumber           string               `json:"phoneNumber"`
+	ApplicantEmployeeDbID uint                 `json:"applicantEmployeeId"`
+	ApplicantName         string               `json:"applicantName,omitempty"`   // 办卡人姓名
+	ApplicantStatus       string               `json:"applicantStatus,omitempty"` // 办卡人当前在职状态
+	ApplicationDate       time.Time            `json:"applicationDate"`
+	CurrentEmployeeDbID   *uint                `json:"currentEmployeeDbId,omitempty"`
+	CurrentUserName       string               `json:"currentUserName,omitempty"` // 当前使用人姓名
+	Status                string               `json:"status"`
+	Vendor                string               `json:"vendor,omitempty"`
+	Remarks               string               `json:"remarks,omitempty"`
+	CancellationDate      *time.Time           `json:"cancellationDate,omitempty"`
+	CreatedAt             time.Time            `json:"createdAt"`
+	UpdatedAt             time.Time            `json:"updatedAt"`
+	UsageHistory          []NumberUsageHistory `json:"usageHistory,omitempty"` // 号码使用历史
 }
