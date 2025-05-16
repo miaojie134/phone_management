@@ -69,3 +69,8 @@ type MobileNumberAssignPayload struct {
 	EmployeeID     uint   `json:"employeeId" binding:"required"`                         // 目标使用人员工 ID
 	AssignmentDate string `json:"assignmentDate" binding:"required,datetime=2006-01-02"` // 分配日期，格式 YYYY-MM-DD
 }
+
+// MobileNumberUnassignPayload 定义了回收号码的请求体
+type MobileNumberUnassignPayload struct {
+	ReclaimDate string `json:"reclaimDate,omitempty" binding:"omitempty,datetime=2006-01-02"` // 回收日期，格式 YYYY-MM-DD (可选)
+}

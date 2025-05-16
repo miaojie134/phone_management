@@ -19,6 +19,8 @@ var ErrRecordNotFound = gorm.ErrRecordNotFound
 var ErrMobileNumberNotInIdleStatus = errors.New("手机号码不是闲置状态")
 var ErrEmployeeNotFound = errors.New("员工未找到")
 var ErrEmployeeNotActive = errors.New("员工不是在职状态")
+var ErrMobileNumberNotInUseStatus = errors.New("手机号码不是在用状态")
+var ErrNoActiveUsageHistoryFound = errors.New("未找到该号码当前有效的分配记录")
 
 // MobileNumberRepository 定义了手机号码数据仓库的接口
 type MobileNumberRepository interface {
@@ -28,6 +30,7 @@ type MobileNumberRepository interface {
 	//未来可以扩展其他方法，如 GetByPhoneNumber, Update, Delete 等
 	UpdateMobileNumber(id uint, updates map[string]interface{}) (*models.MobileNumber, error)
 	AssignMobileNumber(numberID uint, employeeID uint, assignmentDate time.Time) (*models.MobileNumber, error)
+	UnassignMobileNumber(numberID uint, reclaimDate time.Time) (*models.MobileNumber, error)
 }
 
 // gormMobileNumberRepository 是 MobileNumberRepository 的 GORM 实现
@@ -283,5 +286,68 @@ func (r *gormMobileNumberRepository) AssignMobileNumber(numberID uint, employeeI
 	// 但基于 API 文档，返回更新后的号码对象即可，当前 mobileNumber 对象已更新。
 	// 如果需要返回包含办卡人姓名等，则需要重新调用 GetMobileNumberByID 或类似方法。
 	// 但 Assign 操作本身返回的是 MobileNumber 模型。
+	return &mobileNumber, nil
+}
+
+// UnassignMobileNumber 从当前使用人处回收手机号码
+func (r *gormMobileNumberRepository) UnassignMobileNumber(numberID uint, reclaimDate time.Time) (*models.MobileNumber, error) {
+	var mobileNumber models.MobileNumber
+
+	err := r.db.Transaction(func(tx *gorm.DB) error {
+		// 1. 查找并锁定手机号码记录
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").First(&mobileNumber, numberID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrRecordNotFound // 号码未找到
+			}
+			return err
+		}
+
+		// 2. 校验号码是否为"在用"状态
+		if mobileNumber.Status != string(models.StatusInUse) {
+			return ErrMobileNumberNotInUseStatus
+		}
+
+		// 3. 更新号码使用历史记录：找到当前这条号码的最后一条（即当前生效的）使用记录，并设置其 endDate
+		var usageHistory models.NumberUsageHistory
+		// 我们需要找到该号码 (MobileNumberDbID) 当前使用者 (EmployeeDbID) 的那条未结束的记录
+		// mobileNumber.CurrentEmployeeDbID 应该是有值的，因为状态是在用
+		if mobileNumber.CurrentEmployeeDbID == nil {
+			// 这是一个数据不一致的情况，理论上"在用"的号码应该有关联的 currentEmployeeDbId
+			return errors.New("数据不一致：在用号码没有关联当前用户")
+		}
+
+		result := tx.Where("mobile_number_db_id = ? AND employee_db_id = ? AND end_date IS NULL",
+			numberID, *mobileNumber.CurrentEmployeeDbID).
+			Order("start_date desc"). // 理论上每个用户对一个号码同时只有一条active记录，但以防万一取最新的
+			First(&usageHistory)
+
+		if result.Error != nil {
+			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+				// 如果没有找到匹配的 usage history，这可能意味着数据存在问题，或者逻辑需要调整
+				// 例如，号码被标记为"在用"，但没有对应的"未结束"的使用记录
+				return ErrNoActiveUsageHistoryFound
+			}
+			return result.Error
+		}
+
+		usageHistory.EndDate = &reclaimDate
+		if err := tx.Save(&usageHistory).Error; err != nil {
+			return err
+		}
+
+		// 4. 更新号码记录：清空当前使用人，状态改回"闲置"
+		mobileNumber.CurrentEmployeeDbID = nil
+		mobileNumber.Status = string(models.StatusIdle)
+		if err := tx.Save(&mobileNumber).Error; err != nil {
+			return err
+		}
+
+		return nil // 事务成功
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
 	return &mobileNumber, nil
 }

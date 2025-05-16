@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -329,4 +330,70 @@ func (h *MobileNumberHandler) AssignMobileNumber(c *gin.Context) {
 	}
 
 	utils.RespondSuccess(c, http.StatusOK, assignedMobileNumber, "手机号码分配成功")
+}
+
+// UnassignMobileNumber godoc
+// @Summary 从当前使用人处回收指定ID的手机号码
+// @Description 校验目标号码是否为"在用"状态。更新号码记录，清空当前使用人员工ID，将号码状态改为"闲置"。更新上一条与该号码和使用人相关的号码使用历史记录，记录使用结束时间。
+// @Tags MobileNumbers
+// @Accept json
+// @Produce json
+// @Param id path uint true "手机号码ID"
+// @Param unassignPayload body models.MobileNumberUnassignPayload false "回收信息 (可选，包含回收日期 YYYY-MM-DD)"
+// @Success 200 {object} utils.SuccessResponse{data=models.MobileNumber} "成功回收后的号码对象"
+// @Failure 400 {object} utils.APIErrorResponse "请求参数错误 / 无效的ID格式 / 无效的日期格式"
+// @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
+// @Failure 404 {object} utils.APIErrorResponse "手机号码未找到"
+// @Failure 409 {object} utils.APIErrorResponse "操作冲突 (例如：号码非在用状态，或未找到有效的分配记录)"
+// @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
+// @Router /mobilenumbers/{id}/unassign [post]
+// @Security BearerAuth
+func (h *MobileNumberHandler) UnassignMobileNumber(c *gin.Context) {
+	idStr := c.Param("id")
+	numberID, err := parseUint(idStr)
+	if err != nil {
+		utils.RespondAPIError(c, http.StatusBadRequest, "无效的手机号码ID格式", err.Error())
+		return
+	}
+
+	var payload models.MobileNumberUnassignPayload
+	// 请求体是可选的，所以即使绑定失败（比如空body），也不一定是错误，除非有内容但格式不对
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		// 检查是否因为空body导致的EOF错误，如果是，可以忽略，因为payload是可选的
+		// 对于其他绑定错误，则报告为校验错误
+		// 然而，gin 的 ShouldBindJSON 对空 body 且字段非必需时不会报错。如果 ReclaimDate 有 binding:"required" 才会。
+		// 当前 ReclaimDate 是 omitempty,datetime，所以空 body 或空 reclaimDate 字符串是允许的。
+		// 但如果提供了 reclaimDate 但格式不对，会在这里出错。
+		utils.RespondValidationError(c, err.Error())
+		return
+	}
+
+	reclaimDate := time.Now() // 默认使用当前时间
+	if payload.ReclaimDate != "" {
+		parsedDate, err := time.Parse("2006-01-02", payload.ReclaimDate)
+		if err != nil {
+			utils.RespondAPIError(c, http.StatusBadRequest, "回收日期格式无效，请使用 YYYY-MM-DD", err.Error())
+			return
+		}
+		reclaimDate = parsedDate
+	}
+
+	unassignedMobileNumber, err := h.service.UnassignMobileNumber(numberID, reclaimDate)
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrMobileNumberNotFound):
+			utils.RespondNotFoundError(c, "手机号码")
+		case errors.Is(err, repositories.ErrMobileNumberNotInUseStatus):
+			utils.RespondAPIError(c, http.StatusConflict, "手机号码不是在用状态，无法回收", err.Error()) // 409 Conflict
+		case errors.Is(err, repositories.ErrNoActiveUsageHistoryFound):
+			utils.RespondAPIError(c, http.StatusConflict, "未找到该号码当前有效的分配记录，无法回收", err.Error()) // 409 Conflict
+		case strings.Contains(err.Error(), "数据不一致：在用号码没有关联当前用户"):
+			utils.RespondAPIError(c, http.StatusInternalServerError, "服务器内部错误: 数据不一致", err.Error()) // 500 for data inconsistency
+		default:
+			utils.RespondInternalServerError(c, "回收手机号码失败", err.Error())
+		}
+		return
+	}
+
+	utils.RespondSuccess(c, http.StatusOK, unassignedMobileNumber, "手机号码回收成功")
 }

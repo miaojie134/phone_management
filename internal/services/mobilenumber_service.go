@@ -18,6 +18,7 @@ type MobileNumberService interface {
 	GetMobileNumberByID(id uint) (*models.MobileNumberResponse, error)
 	UpdateMobileNumber(id uint, payload models.MobileNumberUpdatePayload) (*models.MobileNumber, error)
 	AssignMobileNumber(numberID uint, employeeID uint, assignmentDate time.Time) (*models.MobileNumber, error)
+	UnassignMobileNumber(numberID uint, reclaimDate time.Time) (*models.MobileNumber, error)
 }
 
 // mobileNumberService 是 MobileNumberService 的实现
@@ -118,4 +119,18 @@ func (s *mobileNumberService) AssignMobileNumber(numberID uint, employeeID uint,
 		return nil, err
 	}
 	return assignedMobileNumber, nil
+}
+
+// UnassignMobileNumber 处理从当前用户回收手机号码的业务逻辑
+func (s *mobileNumberService) UnassignMobileNumber(numberID uint, reclaimDate time.Time) (*models.MobileNumber, error) {
+	unassignedMobileNumber, err := s.repo.UnassignMobileNumber(numberID, reclaimDate)
+	if err != nil {
+		// 错误转换：将仓库层特定的错误转换为服务层或通用的错误
+		if errors.Is(err, repositories.ErrRecordNotFound) { // 号码未找到
+			return nil, ErrMobileNumberNotFound
+		}
+		// 其他特定错误如 ErrMobileNumberNotInUseStatus, ErrNoActiveUsageHistoryFound 会直接从 repo 传递上来
+		return nil, err
+	}
+	return unassignedMobileNumber, nil
 }
