@@ -13,35 +13,44 @@ var ErrMobileNumberNotFound = errors.New("手机号码未找到")
 
 // MobileNumberService 定义了手机号码服务的接口
 type MobileNumberService interface {
+	// CreateMobileNumber 的 mobileNumber 参数中已包含 ApplicantEmployeeID (string)
 	CreateMobileNumber(mobileNumber *models.MobileNumber) (*models.MobileNumber, error)
 	GetMobileNumbers(page, limit int, sortBy, sortOrder, search, status, applicantStatus string) ([]models.MobileNumberResponse, int64, error)
 	GetMobileNumberByID(id uint) (*models.MobileNumberResponse, error)
 	UpdateMobileNumber(id uint, payload models.MobileNumberUpdatePayload) (*models.MobileNumber, error)
-	AssignMobileNumber(numberID uint, employeeID uint, assignmentDate time.Time) (*models.MobileNumber, error)
+	// AssignMobileNumber 的 employeeBusinessID 参数是 string (业务工号)
+	AssignMobileNumber(numberID uint, employeeBusinessID string, assignmentDate time.Time) (*models.MobileNumber, error)
 	UnassignMobileNumber(numberID uint, reclaimDate time.Time) (*models.MobileNumber, error)
 }
 
 // mobileNumberService 是 MobileNumberService 的实现
 type mobileNumberService struct {
-	repo repositories.MobileNumberRepository
-	// employeeRepo repositories.EmployeeRepository // 未来可注入员工仓库用于校验 ApplicantEmployeeDbID
+	repo            repositories.MobileNumberRepository
+	employeeService EmployeeService // 使用接口类型 EmployeeService，而不是 services.EmployeeService
 }
 
 // NewMobileNumberService 创建一个新的 mobileNumberService 实例
-func NewMobileNumberService(repo repositories.MobileNumberRepository) MobileNumberService {
-	return &mobileNumberService{repo: repo}
+func NewMobileNumberService(repo repositories.MobileNumberRepository, empService EmployeeService) MobileNumberService { // 参数类型也改为接口类型
+	return &mobileNumberService{repo: repo, employeeService: empService}
 }
 
 // CreateMobileNumber 处理创建手机号码的业务逻辑
+// mobileNumber.ApplicantEmployeeID (string) 已经由 handler 层从 payload 设置
 func (s *mobileNumberService) CreateMobileNumber(mobileNumber *models.MobileNumber) (*models.MobileNumber, error) {
-	// 当前业务逻辑比较简单，直接调用仓库层
-	// 未来可在这里添加更复杂的业务规则，例如：
-	// 1. 检查办卡人 ID (ApplicantEmployeeDbID) 是否有效 (需要 EmployeeRepository)
-	// 2. 根据特定规则自动生成某些字段的值等
+	// 1. 验证 ApplicantEmployeeID (员工业务工号) 是否有效 (即员工是否存在)
+	_, err := s.employeeService.GetEmployeeByBusinessID(mobileNumber.ApplicantEmployeeID)
+	if err != nil {
+		// err 可能是 ErrEmployeeNotFound 或其他DB错误
+		// 如果是 ErrEmployeeNotFound，handler 层会捕获并返回 404
+		return nil, err
+	}
+	// (可选) 若将来需要，可在此处用上面查询到的 employee 对象做进一步校验，例如：
+	// if queriedApplicant.EmploymentStatus != "Active" { ... }
 
+	// ApplicantEmployeeID (string) 已在 mobileNumber 对象中，直接传递给仓库层创建
 	createdMobileNumber, err := s.repo.CreateMobileNumber(mobileNumber)
 	if err != nil {
-		return nil, err // 将仓库层错误（包括 ErrPhoneNumberExists）直接向上传递
+		return nil, err
 	}
 	return createdMobileNumber, nil
 }
@@ -103,19 +112,29 @@ func (s *mobileNumberService) UpdateMobileNumber(id uint, payload models.MobileN
 }
 
 // AssignMobileNumber 处理将手机号码分配给员工的业务逻辑
-func (s *mobileNumberService) AssignMobileNumber(numberID uint, employeeID uint, assignmentDate time.Time) (*models.MobileNumber, error) {
-	assignedMobileNumber, err := s.repo.AssignMobileNumber(numberID, employeeID, assignmentDate)
+// employeeBusinessID 是员工的业务工号 (string)
+func (s *mobileNumberService) AssignMobileNumber(numberID uint, employeeBusinessID string, assignmentDate time.Time) (*models.MobileNumber, error) {
+	// 1. 验证 employeeBusinessID (员工业务工号) 是否有效且在职
+	assignee, err := s.employeeService.GetEmployeeByBusinessID(employeeBusinessID)
 	if err != nil {
-		// 错误转换：将仓库层特定的错误转换为服务层或通用的错误
-		if errors.Is(err, repositories.ErrRecordNotFound) { // 号码或员工未找到（在仓库层AssignMobileNumber中会区分返回ErrEmployeeNotFound或ErrRecordNotFound for number）
-			// 决定是返回更具体的错误还是统一的"未找到"
-			// 为了清晰，这里可以考虑不在service层再转换 ErrEmployeeNotFound，直接透传
-			// 但如果 ErrRecordNotFound 是针对 mobile number 的，则转换为 ErrMobileNumberNotFound
-			// 鉴于 repo.AssignMobileNumber 返回的 ErrRecordNotFound 是针对 MobileNumber 的，所以转换为 ErrMobileNumberNotFound
-			// 而 ErrEmployeeNotFound, ErrMobileNumberNotInIdleStatus, ErrEmployeeNotActive 会直接从repo透传过来
+		return nil, err // err 可能是 ErrEmployeeNotFound 或其他DB错误
+	}
+	if assignee.EmploymentStatus != "Active" { // 确保员工在职才能分配号码
+		return nil, repositories.ErrEmployeeNotActive // 复用仓库层的错误，表示员工非在职
+	}
+
+	// employeeBusinessID (string) 直接传递给仓库层
+	// 仓库层 AssignMobileNumber 内部还会再次查询员工以确认状态，这可以视为一种双重保障或允许仓库层独立校验。
+	// 如果希望避免仓库层重复查询员工（因为这里已经查过），可以调整仓库层 AssignMobileNumber 的逻辑。
+	// 但当前保持不变，让仓库层也进行校验。
+	assignedMobileNumber, err := s.repo.AssignMobileNumber(numberID, employeeBusinessID, assignmentDate)
+	if err != nil {
+		if errors.Is(err, repositories.ErrRecordNotFound) {
+			// 此处的 ErrRecordNotFound 是针对 MobileNumber 的，由 repo.AssignMobileNumber 返回
 			return nil, ErrMobileNumberNotFound
 		}
-		// 其他特定错误如 ErrMobileNumberNotInIdleStatus, ErrEmployeeNotFound, ErrEmployeeNotActive 会直接从 repo 传递上来
+		// 其他特定错误如 ErrMobileNumberNotInIdleStatus, ErrEmployeeNotFound (如果仓库层校验员工失败)
+		// ErrEmployeeNotActive (如果仓库层校验员工状态失败) 会直接从 repo 传递上来。
 		return nil, err
 	}
 	return assignedMobileNumber, nil

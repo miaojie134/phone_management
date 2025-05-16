@@ -15,6 +15,8 @@ var ErrEmployeeIDExists = errors.New("员工工号已存在")
 type EmployeeRepository interface {
 	CreateEmployee(employee *models.Employee) (*models.Employee, error)
 	GetEmployees(page, limit int, sortBy, sortOrder, search, employmentStatus string) ([]models.Employee, int64, error)
+	GetEmployeeByID(id uint) (*models.EmployeeDetailResponse, error)
+	GetEmployeeByBusinessID(businessID string) (*models.Employee, error)
 	// 未来可以扩展其他方法，如 GetEmployeeByID, UpdateEmployee, DeleteEmployee 等
 }
 
@@ -109,4 +111,61 @@ func (r *gormEmployeeRepository) GetEmployees(page, limit int, sortBy, sortOrder
 	}
 
 	return employees, totalItems, nil
+}
+
+// GetEmployeeByID 从数据库中获取指定ID的员工详情及其关联的手机号码信息
+func (r *gormEmployeeRepository) GetEmployeeByID(id uint) (*models.EmployeeDetailResponse, error) {
+	var employee models.Employee
+	if err := r.db.First(&employee, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrRecordNotFound // 使用仓库层已定义的错误
+		}
+		return nil, err
+	}
+
+	empDetailResp := &models.EmployeeDetailResponse{
+		ID:               employee.ID,
+		EmployeeID:       employee.EmployeeID,
+		FullName:         employee.FullName,
+		Department:       employee.Department,
+		EmploymentStatus: employee.EmploymentStatus,
+		HireDate:         employee.HireDate,
+		TerminationDate:  employee.TerminationDate,
+		CreatedAt:        employee.CreatedAt,
+		UpdatedAt:        employee.UpdatedAt,
+	}
+
+	// 获取作为办卡人的号码列表 (简要信息)
+	var handledNumbers []models.MobileNumberBasicInfo
+	if err := r.db.Model(&models.MobileNumber{}).
+		Select("id, phone_number, status").
+		Where("applicant_employee_id = ?", employee.EmployeeID).
+		Find(&handledNumbers).Error; err != nil {
+		return nil, err
+	}
+	empDetailResp.HandledMobileNumbers = handledNumbers
+
+	// 获取作为当前使用人的号码列表 (简要信息)
+	var usingNumbers []models.MobileNumberBasicInfo
+	if err := r.db.Model(&models.MobileNumber{}).
+		Select("id, phone_number, status").
+		Where("current_employee_id = ?", employee.EmployeeID).
+		Find(&usingNumbers).Error; err != nil {
+		return nil, err
+	}
+	empDetailResp.UsingMobileNumbers = usingNumbers
+
+	return empDetailResp, nil
+}
+
+// GetEmployeeByBusinessID 根据员工业务工号 (employee_id 字段) 查询员工信息
+func (r *gormEmployeeRepository) GetEmployeeByBusinessID(businessID string) (*models.Employee, error) {
+	var employee models.Employee
+	if err := r.db.Where("employee_id = ?", businessID).First(&employee).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrRecordNotFound // 复用已定义的记录未找到错误
+		}
+		return nil, err // 其他数据库错误
+	}
+	return &employee, nil
 }

@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/phone_management/internal/models"
@@ -153,4 +155,49 @@ func (h *EmployeeHandler) GetEmployees(c *gin.Context) {
 	}
 
 	utils.RespondSuccess(c, http.StatusOK, pagedData, "员工列表获取成功")
+}
+
+// parseUintFromString 是一个辅助函数，用于将字符串ID解析为uint
+// TODO: 考虑将此类通用辅助函数移至共享的 utils 包中，如果多处需要
+func parseUintFromString(idStr string) (uint, error) {
+	val, err := strconv.ParseUint(idStr, 10, 32) // 32表示结果适合uint类型
+	if err != nil {
+		return 0, fmt.Errorf("无法将 '%s' 解析为有效的数字ID: %w", idStr, err)
+	}
+	return uint(val), nil
+}
+
+// GetEmployeeByID godoc
+// @Summary 获取指定ID的员工详情
+// @Description 根据路径参数ID获取单个员工的完整信息，包含其作为"办卡人"和"当前使用人"的号码简要列表。
+// @Tags Employees
+// @Accept json
+// @Produce json
+// @Param id path uint true "员工ID"
+// @Success 200 {object} utils.SuccessResponse{data=models.EmployeeDetailResponse} "成功响应，包含员工详情"
+// @Failure 400 {object} utils.APIErrorResponse "无效的ID格式"
+// @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
+// @Failure 404 {object} utils.APIErrorResponse "员工未找到"
+// @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
+// @Router /employees/{id} [get]
+// @Security BearerAuth
+func (h *EmployeeHandler) GetEmployeeByID(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := parseUintFromString(idStr)
+	if err != nil {
+		utils.RespondAPIError(c, http.StatusBadRequest, "无效的员工ID格式", err.Error())
+		return
+	}
+
+	employeeDetail, err := h.service.GetEmployeeByID(id)
+	if err != nil {
+		if errors.Is(err, services.ErrEmployeeNotFound) {
+			utils.RespondNotFoundError(c, "员工")
+		} else {
+			utils.RespondInternalServerError(c, "获取员工详情失败", err.Error())
+		}
+		return
+	}
+
+	utils.RespondSuccess(c, http.StatusOK, employeeDetail, "员工详情获取成功")
 }

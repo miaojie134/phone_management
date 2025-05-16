@@ -24,3 +24,19 @@ type Employee struct {
 func (Employee) TableName() string {
 	return "employees"
 }
+
+// EmployeeDetailResponse 定义了获取员工详情时的响应结构
+// 包含员工基本信息及其作为"办卡人"和"当前使用人"的号码简要列表
+type EmployeeDetailResponse struct {
+	ID                   int64                   `json:"id"`
+	EmployeeID           string                  `json:"employeeId"`
+	FullName             string                  `json:"fullName"`
+	Department           *string                 `json:"department,omitempty"`
+	EmploymentStatus     string                  `json:"employmentStatus"`
+	HireDate             *time.Time              `json:"hireDate,omitempty"`
+	TerminationDate      *time.Time              `json:"terminationDate,omitempty"`
+	CreatedAt            time.Time               `json:"createdAt"`
+	UpdatedAt            time.Time               `json:"updatedAt"`
+	HandledMobileNumbers []MobileNumberBasicInfo `json:"handledMobileNumbers,omitempty"` // 作为办卡人的号码列表
+	UsingMobileNumbers   []MobileNumberBasicInfo `json:"usingMobileNumbers,omitempty"`   // 作为当前使用人的号码列表
+}

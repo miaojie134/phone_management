@@ -255,7 +255,7 @@ employmentStatus (可选, string, 'Active'或'Departed'): 在职状态筛选。
 
 GET /:id
 描述: 获取指定 ID 的员工详情。
-路径参数: id (员工的数据库 ID 或 业务工号 employeeId，需统一)。
+路径参数: id (员工的数据库 ID )。
 响应 (200 OK): 返回单个员工对象，包含其作为“办卡人”和“当前使用人”的号码简要列表。
 
 POST /:id/update (原 PUT /:id)

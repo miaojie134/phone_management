@@ -33,10 +33,16 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			authGroup.POST("/logout", jwtAuthMiddleware, handlers.LogoutHandler)
 		}
 
+		// --- 员工路由 (先初始化，因为 MobileNumberService 可能依赖它) ---
+		employeeRepo := repositories.NewGormEmployeeRepository(db)
+		employeeService := services.NewEmployeeService(employeeRepo)
+		employeeHandler := handlers.NewEmployeeHandler(employeeService)
+
 		// --- 手机号码路由 ---
 		// 初始化手机号码相关的 repository, service, handler
 		mobileNumberRepo := repositories.NewGormMobileNumberRepository(db)
-		mobileNumberService := services.NewMobileNumberService(mobileNumberRepo)
+		// 将 employeeService 注入到 MobileNumberService
+		mobileNumberService := services.NewMobileNumberService(mobileNumberRepo, employeeService)
 		mobileNumberHandler := handlers.NewMobileNumberHandler(mobileNumberService)
 
 		mobileNumbersGroup := apiV1.Group("/mobilenumbers")
@@ -53,19 +59,13 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			mobileNumbersGroup.POST("/:id/unassign", mobileNumberHandler.UnassignMobileNumber)
 		}
 
-		// --- 员工路由 ---
-		employeeRepo := repositories.NewGormEmployeeRepository(db)
-		employeeService := services.NewEmployeeService(employeeRepo)
-		employeeHandler := handlers.NewEmployeeHandler(employeeService)
-
+		// --- 员工路由组定义放在后面，但初始化已提前 ---
 		employeeRoutes := apiV1.Group("/employees")
-		employeeRoutes.Use(jwtAuthMiddleware) // 对整个 /employees 路由组应用 JWT 中间件
+		employeeRoutes.Use(jwtAuthMiddleware)
 		{
 			employeeRoutes.POST("/", employeeHandler.CreateEmployee)
-			// GET /api/v1/employees/
 			employeeRoutes.GET("/", employeeHandler.GetEmployees)
-			// GET /api/v1/employees/:id (未来实现)
-			// employeeRoutes.GET("/:id", employeeHandler.GetEmployeeByID)
+			employeeRoutes.GET("/:id", employeeHandler.GetEmployeeByID)
 			// POST /api/v1/employees/:id/update (未来实现)
 			// employeeRoutes.POST("/:id/update", employeeHandler.UpdateEmployee)
 		}

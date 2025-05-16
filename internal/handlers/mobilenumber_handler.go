@@ -27,12 +27,12 @@ func NewMobileNumberHandler(service services.MobileNumberService) *MobileNumberH
 
 // CreateMobileNumberPayload 是用于绑定和验证创建手机号码请求的临时结构体
 type CreateMobileNumberPayload struct {
-	PhoneNumber           string `json:"phoneNumber" binding:"required,max=50"`
-	ApplicantEmployeeDbID uint   `json:"applicantEmployeeId" binding:"required"`
-	ApplicationDate       string `json:"applicationDate" binding:"required,datetime=2006-01-02"` // 日期作为字符串接收和验证
-	Status                string `json:"status" binding:"required,oneof=闲置 在用 待注销 已注销 待核实-办卡人离职"`
-	Vendor                string `json:"vendor" binding:"max=100"`
-	Remarks               string `json:"remarks" binding:"max=255"`
+	PhoneNumber         string `json:"phoneNumber" binding:"required,max=50"`
+	ApplicantEmployeeID string `json:"applicantEmployeeId" binding:"required"` // 改为 string，代表业务工号
+	ApplicationDate     string `json:"applicationDate" binding:"required,datetime=2006-01-02"`
+	Status              string `json:"status" binding:"required,oneof=闲置 在用 待注销 已注销 待核实-办卡人离职"`
+	Vendor              string `json:"vendor" binding:"max=100"`
+	Remarks             string `json:"remarks" binding:"max=255"`
 	// CurrentEmployeeDbID 和 CancellationDate 是可选的，如果它们在创建请求中也可能出现，也应在此处添加为字符串并处理
 	// CurrentEmployeeDbID   *uint  `json:"currentEmployeeDbId,omitempty"`
 	// CancellationDate      string `json:"cancellationDate,omitempty" binding:"omitempty,datetime=2006-01-02"`
@@ -67,18 +67,21 @@ func (h *MobileNumberHandler) CreateMobileNumber(c *gin.Context) {
 	}
 
 	mobileNumberToCreate := &models.MobileNumber{
-		PhoneNumber:           payload.PhoneNumber,
-		ApplicantEmployeeDbID: payload.ApplicantEmployeeDbID,
-		ApplicationDate:       applicationDate,
-		Status:                payload.Status,
-		Vendor:                payload.Vendor,
-		Remarks:               payload.Remarks,
+		PhoneNumber:         payload.PhoneNumber,
+		ApplicantEmployeeID: payload.ApplicantEmployeeID, // 直接使用业务工号
+		ApplicationDate:     applicationDate,
+		Status:              payload.Status,
+		Vendor:              payload.Vendor,
+		Remarks:             payload.Remarks,
 	}
 
+	// 服务层 CreateMobileNumber 方法签名已更新，不再需要第二个 applicantBusinessID 参数
 	createdMobileNumber, err := h.service.CreateMobileNumber(mobileNumberToCreate)
 	if err != nil {
 		if errors.Is(err, repositories.ErrPhoneNumberExists) {
 			utils.RespondConflictError(c, repositories.ErrPhoneNumberExists.Error())
+		} else if errors.Is(err, services.ErrEmployeeNotFound) {
+			utils.RespondAPIError(c, http.StatusNotFound, "办卡人员工工号未找到", "employeeId: "+payload.ApplicantEmployeeID)
 		} else {
 			utils.RespondInternalServerError(c, "创建手机号码失败", err.Error())
 		}
@@ -269,6 +272,12 @@ func (h *MobileNumberHandler) UpdateMobileNumber(c *gin.Context) {
 	utils.RespondSuccess(c, http.StatusOK, updatedMobileNumber, "手机号码更新成功")
 }
 
+// MobileNumberAssignPayload 定义了分配号码的请求体
+type MobileNumberAssignPayload struct {
+	EmployeeID     string `json:"employeeId" binding:"required"` // 改为 string, 代表业务工号
+	AssignmentDate string `json:"assignmentDate" binding:"required,datetime=2006-01-02"`
+}
+
 // AssignMobileNumber godoc
 // @Summary 将指定ID的手机号码分配给一个员工
 // @Description 校验目标号码是否为"闲置"状态，目标员工是否为"在职"状态。更新号码记录，关联当前使用人员工ID，将号码状态改为"在用"。创建一条新的号码使用历史记录。
@@ -276,11 +285,11 @@ func (h *MobileNumberHandler) UpdateMobileNumber(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path uint true "手机号码ID"
-// @Param assignPayload body models.MobileNumberAssignPayload true "分配信息 (员工ID和分配日期 YYYY-MM-DD)"
+// @Param assignPayload body models.MobileNumberAssignPayload true "分配信息 (员工业务工号和分配日期 YYYY-MM-DD)"
 // @Success 200 {object} utils.SuccessResponse{data=models.MobileNumber} "成功分配后的号码对象"
 // @Failure 400 {object} utils.APIErrorResponse "请求参数错误 / 无效的ID格式 / 无效的日期格式"
 // @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
-// @Failure 404 {object} utils.APIErrorResponse "手机号码或员工未找到"
+// @Failure 404 {object} utils.APIErrorResponse "手机号码或目标员工工号未找到"
 // @Failure 409 {object} utils.APIErrorResponse "操作冲突 (例如：号码非闲置，员工非在职)"
 // @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
 // @Router /mobilenumbers/{id}/assign [post]
@@ -310,12 +319,12 @@ func (h *MobileNumberHandler) AssignMobileNumber(c *gin.Context) {
 		switch {
 		case errors.Is(err, services.ErrMobileNumberNotFound):
 			utils.RespondNotFoundError(c, "手机号码")
-		case errors.Is(err, repositories.ErrEmployeeNotFound):
-			utils.RespondAPIError(c, http.StatusNotFound, "目标员工未找到", err.Error()) // 404 for employee not found
+		case errors.Is(err, services.ErrEmployeeNotFound): // 来自于 EmployeeService.GetEmployeeByBusinessID
+			utils.RespondAPIError(c, http.StatusNotFound, "目标员工未找到 (基于提供的工号)", "employeeId: "+payload.EmployeeID)
 		case errors.Is(err, repositories.ErrMobileNumberNotInIdleStatus):
-			utils.RespondAPIError(c, http.StatusConflict, "手机号码不是闲置状态，无法分配", err.Error()) // 409 Conflict
+			utils.RespondAPIError(c, http.StatusConflict, "手机号码不是闲置状态，无法分配", err.Error())
 		case errors.Is(err, repositories.ErrEmployeeNotActive):
-			utils.RespondAPIError(c, http.StatusConflict, "目标员工不是在职状态，无法分配", err.Error()) // 409 Conflict
+			utils.RespondAPIError(c, http.StatusConflict, "目标员工不是在职状态，无法分配", err.Error())
 		default:
 			utils.RespondInternalServerError(c, "分配手机号码失败", err.Error())
 		}
