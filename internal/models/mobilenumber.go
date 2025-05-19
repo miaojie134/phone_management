@@ -20,7 +20,7 @@ const (
 // MobileNumber 对应于数据库中的 mobile_numbers 表
 type MobileNumber struct {
 	ID                  uint           `json:"id" gorm:"primaryKey"`
-	PhoneNumber         string         `json:"phoneNumber" gorm:"unique;not null" binding:"required,max=50"`
+	PhoneNumber         string         `json:"phoneNumber" gorm:"unique;not null;size:11" binding:"required,len=11,numeric"`
 	ApplicantEmployeeID string         `json:"applicantEmployeeId" gorm:"column:applicant_employee_id;not null" binding:"required"` // 办卡人员工业务工号
 	ApplicationDate     time.Time      `json:"applicationDate" gorm:"not null" binding:"required,time_format=2006-01-02"`
 	CurrentEmployeeID   *string        `json:"currentEmployeeId,omitempty" gorm:"column:current_employee_id"` // 当前使用人员工业务工号

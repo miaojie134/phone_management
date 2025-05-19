@@ -23,9 +23,10 @@ type EmployeeRepository interface {
 	GetEmployees(page, limit int, sortBy, sortOrder, search, employmentStatus string) ([]models.Employee, int64, error)
 	GetEmployeeDetailByEmployeeID(employeeID string) (*models.EmployeeDetailResponse, error)
 	GetEmployeeByEmployeeID(employeeID string) (*models.Employee, error)
-	UpdateEmployee(employeeID string, updates map[string]interface{}) (*models.Employee, error)
 	GetEmployeeByPhoneNumber(phoneNumber string) (*models.Employee, error)
 	GetEmployeeByEmail(email string) (*models.Employee, error)
+	UpdateEmployee(employeeID string, updates map[string]interface{}) (*models.Employee, error)
+	GetEmployeesByFullName(fullName string) ([]*models.Employee, error)
 	// 未来可以扩展其他方法，如 GetEmployeeByID, UpdateEmployee, DeleteEmployee 等
 }
 
@@ -181,6 +182,39 @@ func (r *gormEmployeeRepository) GetEmployeeByEmployeeID(employeeID string) (*mo
 	return &employee, nil
 }
 
+// GetEmployeeByPhoneNumber 根据手机号码查询员工 (排除软删除的)
+func (r *gormEmployeeRepository) GetEmployeeByPhoneNumber(phoneNumber string) (*models.Employee, error) {
+	var employee models.Employee
+	if err := r.db.Where("phone_number = ?", phoneNumber).First(&employee).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrRecordNotFound // 复用已定义的记录未找到错误
+		}
+		return nil, err
+	}
+	return &employee, nil
+}
+
+// GetEmployeeByEmail 根据邮箱查询员工 (排除软删除的)
+func (r *gormEmployeeRepository) GetEmployeeByEmail(email string) (*models.Employee, error) {
+	var employee models.Employee
+	if err := r.db.Where("email = ?", email).First(&employee).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrRecordNotFound
+		}
+		return nil, err
+	}
+	return &employee, nil
+}
+
+// GetEmployeesByFullName 根据员工全名查找员工 (可能返回多个，用于处理重名场景)
+func (r *gormEmployeeRepository) GetEmployeesByFullName(fullName string) ([]*models.Employee, error) {
+	var employees []*models.Employee
+	if err := r.db.Where("full_name = ?", fullName).Find(&employees).Error; err != nil {
+		return nil, err
+	}
+	return employees, nil
+}
+
 // UpdateEmployee 更新指定业务工号的员工信息
 func (r *gormEmployeeRepository) UpdateEmployee(employeeID string, updates map[string]interface{}) (*models.Employee, error) {
 	// 首先，检查员工是否存在，确保我们操作的是一个有效的记录
@@ -207,28 +241,4 @@ func (r *gormEmployeeRepository) UpdateEmployee(employeeID string, updates map[s
 		return nil, err // 理论上此时应该能找到
 	}
 	return &updatedEmployee, nil
-}
-
-// GetEmployeeByPhoneNumber 根据手机号码查询员工 (排除软删除的)
-func (r *gormEmployeeRepository) GetEmployeeByPhoneNumber(phoneNumber string) (*models.Employee, error) {
-	var employee models.Employee
-	if err := r.db.Where("phone_number = ?", phoneNumber).First(&employee).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrRecordNotFound // 复用已定义的记录未找到错误
-		}
-		return nil, err
-	}
-	return &employee, nil
-}
-
-// GetEmployeeByEmail 根据邮箱查询员工 (排除软删除的)
-func (r *gormEmployeeRepository) GetEmployeeByEmail(email string) (*models.Employee, error) {
-	var employee models.Employee
-	if err := r.db.Where("email = ?", email).First(&employee).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, ErrRecordNotFound
-		}
-		return nil, err
-	}
-	return &employee, nil
 }

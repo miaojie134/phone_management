@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/phone_management/internal/models"
@@ -10,6 +11,14 @@ import (
 
 // ErrMobileNumberNotFound 表示手机号码未找到的错误
 var ErrMobileNumberNotFound = errors.New("手机号码未找到")
+
+// 新增错误定义
+var ErrInvalidMobileNumberFormat = errors.New("手机号码必须是11位数字")
+var ErrInvalidMobileNumberPrefix = errors.New("手机号码必须以'1'开头")
+
+// 新增与办卡人姓名解析相关的错误
+var ErrApplicantNameNotFound = errors.New("办卡人姓名未找到")
+var ErrApplicantNameNotUnique = errors.New("办卡人姓名存在重名，无法唯一确定员工，请在系统中确保该姓名唯一或联系管理员处理")
 
 // MobileNumberService 定义了手机号码服务的接口
 type MobileNumberService interface {
@@ -23,6 +32,7 @@ type MobileNumberService interface {
 	AssignMobileNumber(phoneNumber string, employeeBusinessID string, assignmentDate time.Time) (*models.MobileNumber, error)
 	// UnassignMobileNumber(numberID uint, reclaimDate time.Time) (*models.MobileNumber, error) // 旧方法
 	UnassignMobileNumberByPhoneNumber(phoneNumber string, reclaimDate time.Time) (*models.MobileNumber, error) // 新方法
+	ResolveApplicantNameToID(applicantName string) (string, error)                                             // 新增方法
 }
 
 // mobileNumberService 是 MobileNumberService 的实现
@@ -39,6 +49,20 @@ func NewMobileNumberService(repo repositories.MobileNumberRepository, empService
 // CreateMobileNumber 处理创建手机号码的业务逻辑
 // mobileNumber.ApplicantEmployeeID (string) 已经由 handler 层从 payload 设置
 func (s *mobileNumberService) CreateMobileNumber(mobileNumber *models.MobileNumber) (*models.MobileNumber, error) {
+	// 0. 校验手机号码格式
+	// 检查长度是否为11
+	if len(mobileNumber.PhoneNumber) != 11 {
+		return nil, ErrInvalidMobileNumberFormat
+	}
+	// 检查是否都是数字 (使用 employee_service.go 中的 isNumeric)
+	if !isNumeric(mobileNumber.PhoneNumber) {
+		return nil, ErrInvalidMobileNumberFormat
+	}
+	// 检查是否以'1'开头
+	if !strings.HasPrefix(mobileNumber.PhoneNumber, "1") {
+		return nil, ErrInvalidMobileNumberPrefix
+	}
+
 	// 1. 验证 ApplicantEmployeeID (员工业务工号) 是否有效 (即员工是否存在)
 	_, err := s.employeeService.GetEmployeeByEmployeeID(mobileNumber.ApplicantEmployeeID)
 	if err != nil {
@@ -173,4 +197,27 @@ func (s *mobileNumberService) UnassignMobileNumberByPhoneNumber(phoneNumber stri
 		return nil, err
 	}
 	return unassignedMobileNumber, nil
+}
+
+// ResolveApplicantNameToID 根据办卡人姓名解析为唯一的员工业务工号
+func (s *mobileNumberService) ResolveApplicantNameToID(applicantName string) (string, error) {
+	employees, err := s.employeeService.GetEmployeesByFullName(applicantName)
+	if err != nil {
+		if errors.Is(err, ErrEmployeeNameNotFound) { // employee_service 返回的特定错误
+			return "", ErrApplicantNameNotFound // 转换为 MobileNumberService 的特定错误
+		}
+		return "", err // 其他来自 employeeService 的错误
+	}
+
+	// 虽然 employeeService.GetEmployeesByFullName 在空列表时返回 ErrEmployeeNameNotFound，
+	// 但为保险起见，这里也检查一下长度（例如，如果将来 GetEmployeesByFullName 改变了行为）
+	if len(employees) == 0 {
+		return "", ErrApplicantNameNotFound
+	}
+
+	if len(employees) > 1 {
+		return "", ErrApplicantNameNotUnique
+	}
+
+	return employees[0].EmployeeID, nil
 }

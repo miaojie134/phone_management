@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"encoding/csv"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -11,6 +14,8 @@ import (
 	"github.com/phone_management/internal/repositories" // 用于判断 ErrPhoneNumberExists
 	"github.com/phone_management/internal/services"
 	"github.com/phone_management/pkg/utils" // 新增导入
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/transform"
 )
 
 // MobileNumberHandler 封装了手机号码相关的 HTTP 处理逻辑
@@ -387,4 +392,164 @@ func (h *MobileNumberHandler) UnassignMobileNumber(c *gin.Context) {
 	}
 
 	utils.RespondSuccess(c, http.StatusOK, unassignedMobileNumber, "手机号码回收成功")
+}
+
+// BatchImportMobileNumberErrorDetail 描述了批量导入手机号码中单行数据的错误信息
+// (与员工导入的 BatchImportErrorDetail 结构相同，可以考虑提取到公共 utils 或 handlers/common_types.go)
+type BatchImportMobileNumberErrorDetail struct {
+	RowNumber int      `json:"rowNumber"`         // CSV中的原始行号 (从1开始计数，包括表头)
+	RowData   []string `json:"rowData,omitempty"` // 可选，原始行数据
+	Reason    string   `json:"reason"`            // 错误原因
+}
+
+// BatchImportMobileNumbersResponse 定义了批量导入手机号码的响应结构
+type BatchImportMobileNumbersResponse struct {
+	Message      string                               `json:"message"`
+	SuccessCount int                                  `json:"successCount"`
+	ErrorCount   int                                  `json:"errorCount"`
+	Errors       []BatchImportMobileNumberErrorDetail `json:"errors,omitempty"`
+}
+
+// BatchImportMobileNumbers godoc
+// @Summary 批量导入手机号码数据 (CSV)
+// @Description 通过上传 CSV 文件批量导入手机号码。CSV文件应包含表头：phoneNumber,applicantName,applicationDate,vendor
+// @Tags MobileNumbers
+// @Accept multipart/form-data
+// @Produce json
+// @Param file formData file true "包含手机号码数据的 CSV 文件 (表头: phoneNumber,applicantName,applicationDate,vendor)"
+// @Success 200 {object} utils.SuccessResponse{data=BatchImportMobileNumbersResponse} "导入结果摘要"
+// @Failure 400 {object} utils.APIErrorResponse "请求错误，例如文件未提供、文件格式错误或CSV表头不匹配"
+// @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
+// @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
+// @Router /mobilenumbers/import [post]
+// @Security BearerAuth
+func (h *MobileNumberHandler) BatchImportMobileNumbers(c *gin.Context) {
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		utils.RespondAPIError(c, http.StatusBadRequest, "无法读取上传的文件: "+err.Error(), nil)
+		return
+	}
+	defer file.Close()
+
+	if !strings.HasSuffix(strings.ToLower(header.Filename), ".csv") {
+		utils.RespondAPIError(c, http.StatusBadRequest, "文件格式无效，请上传 CSV 文件", nil)
+		return
+	}
+
+	// 兼容GBK和UTF-8编码
+	reader := csv.NewReader(transform.NewReader(file, simplifiedchinese.GBK.NewDecoder()))
+	var successCount, errorCount int
+	var importErrors []BatchImportMobileNumberErrorDetail
+
+	csvHeader, err := reader.Read()
+	if err == io.EOF {
+		utils.RespondAPIError(c, http.StatusBadRequest, "CSV 文件为空或只有表头", nil)
+		return
+	}
+	if err != nil {
+		utils.RespondAPIError(c, http.StatusBadRequest, "无法读取 CSV 表头: "+err.Error(), nil)
+		return
+	}
+
+	// 兼容 UTF-8 BOM
+	if len(csvHeader) > 0 {
+		csvHeader[0] = strings.TrimPrefix(csvHeader[0], "\uFEFF")
+	}
+
+	expectedHeader := []string{"phoneNumber", "applicantName", "applicationDate", "vendor"}
+	if !utils.CompareStringSlices(csvHeader, expectedHeader) {
+		utils.RespondAPIError(c, http.StatusBadRequest, fmt.Sprintf("CSV 表头与预期不符。预期: %v, 得到: %v", expectedHeader, csvHeader), nil)
+		return
+	}
+
+	rowNum := 1 // 表头是第1行
+	for {
+		rowNum++
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			importErrors = append(importErrors, BatchImportMobileNumberErrorDetail{RowNumber: rowNum, Reason: "无法读取行数据: " + err.Error()})
+			errorCount++
+			continue
+		}
+
+		if len(record) != len(expectedHeader) {
+			importErrors = append(importErrors, BatchImportMobileNumberErrorDetail{RowNumber: rowNum, RowData: record, Reason: fmt.Sprintf("列数与表头不匹配，期望 %d 列，得到 %d 列", len(expectedHeader), len(record))})
+			errorCount++
+			continue
+		}
+
+		phoneNumber := strings.TrimSpace(record[0])
+		applicantName := strings.TrimSpace(record[1])
+		applicationDateStr := strings.TrimSpace(record[2])
+		vendorStr := strings.TrimSpace(record[3])
+
+		if phoneNumber == "" {
+			importErrors = append(importErrors, BatchImportMobileNumberErrorDetail{RowNumber: rowNum, RowData: record, Reason: "phoneNumber 不能为空"})
+			errorCount++
+			continue
+		}
+		if applicantName == "" {
+			importErrors = append(importErrors, BatchImportMobileNumberErrorDetail{RowNumber: rowNum, RowData: record, Reason: "applicantName 不能为空"})
+			errorCount++
+			continue
+		}
+		if applicationDateStr == "" {
+			importErrors = append(importErrors, BatchImportMobileNumberErrorDetail{RowNumber: rowNum, RowData: record, Reason: "applicationDate 不能为空"})
+			errorCount++
+			continue
+		}
+
+		// 日期格式兼容：支持 YYYY-MM-DD、YYYY/M/D、YYYY/MM/DD、YYYY-M-D 等
+		applicationDateStr = strings.ReplaceAll(applicationDateStr, "/", "-")
+		var applicationDate time.Time
+		dateLayouts := []string{"2006-01-02", "2006-1-2", "2006-01-2", "2006-1-02"}
+		var parseErr error
+		for _, layout := range dateLayouts {
+			applicationDate, parseErr = time.Parse(layout, applicationDateStr)
+			if parseErr == nil {
+				break
+			}
+		}
+		if parseErr != nil {
+			importErrors = append(importErrors, BatchImportMobileNumberErrorDetail{RowNumber: rowNum, RowData: record, Reason: "applicationDate 格式无效，请使用 YYYY-MM-DD"})
+			errorCount++
+			continue
+		}
+
+		applicantEmployeeID, err := h.service.ResolveApplicantNameToID(applicantName)
+		if err != nil {
+			importErrors = append(importErrors, BatchImportMobileNumberErrorDetail{RowNumber: rowNum, RowData: record, Reason: err.Error()})
+			errorCount++
+			continue
+		}
+
+		mobileToCreate := &models.MobileNumber{
+			PhoneNumber:         phoneNumber,
+			ApplicantEmployeeID: applicantEmployeeID,
+			ApplicationDate:     applicationDate,
+			Status:              string(models.StatusIdle), // Default status
+			Vendor:              vendorStr,
+			Remarks:             "", // Default empty remarks
+		}
+
+		_, err = h.service.CreateMobileNumber(mobileToCreate)
+		if err != nil {
+			importErrors = append(importErrors, BatchImportMobileNumberErrorDetail{RowNumber: rowNum, RowData: record, Reason: err.Error()})
+			errorCount++
+		} else {
+			successCount++
+		}
+	}
+
+	response := BatchImportMobileNumbersResponse{
+		Message:      fmt.Sprintf("手机号码数据导入处理完成。成功: %d, 失败: %d", successCount, errorCount),
+		SuccessCount: successCount,
+		ErrorCount:   errorCount,
+		Errors:       importErrors,
+	}
+
+	utils.RespondSuccess(c, http.StatusOK, response, response.Message)
 }

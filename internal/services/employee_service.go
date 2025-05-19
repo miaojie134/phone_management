@@ -26,6 +26,8 @@ var ErrInvalidPhoneNumberFormat = errors.New("无效的手机号码格式")
 // ErrInvalidPhoneNumberPrefix 表示手机号码前缀不正确 (例如不是以'1'开头)
 var ErrInvalidPhoneNumberPrefix = errors.New("无效的手机号码前缀，必须以1开头")
 
+var ErrEmployeeNameNotFound = errors.New("按姓名未找到员工记录") // 新增错误
+
 // isNumeric 辅助函数，检查字符串是否只包含数字
 func isNumeric(s string) bool {
 	for _, r := range s {
@@ -43,6 +45,7 @@ type EmployeeService interface {
 	GetEmployeeDetailByEmployeeID(employeeID string) (*models.EmployeeDetailResponse, error)
 	GetEmployeeByEmployeeID(employeeID string) (*models.Employee, error)
 	UpdateEmployee(employeeID string, payload models.UpdateEmployeePayload) (*models.Employee, error)
+	GetEmployeesByFullName(fullName string) ([]*models.Employee, error) // 新增方法
 }
 
 // employeeService 是 EmployeeService 的实现
@@ -139,6 +142,18 @@ func (s *employeeService) GetEmployeeByEmployeeID(employeeID string) (*models.Em
 		return nil, err
 	}
 	return employee, nil
+}
+
+// GetEmployeesByFullName 根据员工全名查找员工
+func (s *employeeService) GetEmployeesByFullName(fullName string) ([]*models.Employee, error) {
+	employees, err := s.repo.GetEmployeesByFullName(fullName)
+	if err != nil {
+		return nil, err // 直接返回仓库层错误
+	}
+	if len(employees) == 0 {
+		return nil, ErrEmployeeNameNotFound // 如果列表为空，返回特定错误
+	}
+	return employees, nil
 }
 
 // UpdateEmployee 处理更新员工信息的业务逻辑

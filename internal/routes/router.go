@@ -57,6 +57,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			mobileNumbersGroup.POST("/:phoneNumber/update", mobileNumberHandler.UpdateMobileNumber)
 			mobileNumbersGroup.POST("/:phoneNumber/assign", mobileNumberHandler.AssignMobileNumber)
 			mobileNumbersGroup.POST("/:phoneNumber/unassign", mobileNumberHandler.UnassignMobileNumber)
+			// POST /api/v1/mobilenumbers/import 批量导入手机号码
+			mobileNumbersGroup.POST("/import", mobileNumberHandler.BatchImportMobileNumbers)
 		}
 
 		// --- 员工路由组定义放在后面，但初始化已提前 ---
@@ -68,7 +70,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			employeeRoutes.GET("/:employeeId", employeeHandler.GetEmployeeByID)
 			// POST /api/v1/employees/:employeeId/update
 			employeeRoutes.POST("/:employeeId/update", employeeHandler.UpdateEmployee)
-			// POST /api/v1/employees/import -批量导入员工路由
+			// POST /api/v1/employees/import 批量导入员工
 			employeeRoutes.POST("/import", employeeHandler.BatchImportEmployees)
 		}
 
