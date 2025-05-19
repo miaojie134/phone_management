@@ -33,7 +33,7 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			authGroup.POST("/logout", jwtAuthMiddleware, handlers.LogoutHandler)
 		}
 
-		// --- 员工路由 (先初始化，因为 MobileNumberService 可能依赖它) ---
+		// --- 员工路由 (先初始化，因为 MobileNumberService 依赖它) ---
 		employeeRepo := repositories.NewGormEmployeeRepository(db)
 		employeeService := services.NewEmployeeService(employeeRepo)
 		employeeHandler := handlers.NewEmployeeHandler(employeeService)
