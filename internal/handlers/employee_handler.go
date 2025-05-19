@@ -1,7 +1,11 @@
 package handlers
 
 import (
+	"bufio"
+	"encoding/csv"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -22,26 +26,26 @@ func NewEmployeeHandler(service services.EmployeeService) *EmployeeHandler {
 	return &EmployeeHandler{service: service}
 }
 
-// CreateEmployeePayload 定义了创建员工请求的 JSON 结构体
-type CreateEmployeePayload struct {
-	EmployeeID string  `json:"employeeId" binding:"required,max=100"`
-	FullName   string  `json:"fullName" binding:"required,max=255"`
-	Department *string `json:"department,omitempty" binding:"omitempty,max=255"`
-	// EmploymentStatus 默认为 "Active"，在模型或服务层处理，此处不需传递
-}
-
 // PagedEmployeesData 定义了员工列表的分页响应结构
 type PagedEmployeesData struct {
 	Items      []models.Employee `json:"items"`
 	Pagination PaginationInfo    `json:"pagination"`
 }
 
-// UpdateEmployeePayload 定义已移至 models 包
-// type UpdateEmployeePayload struct {
-// 	Department       *string `json:"department,omitempty" binding:"omitempty,max=255"`
-// 	EmploymentStatus *string `json:"employmentStatus,omitempty" binding:"omitempty,oneof=Active Inactive Departed"`
-// 	TerminationDate  *string `json:"terminationDate,omitempty" binding:"omitempty,datetime=2006-01-02"`
-// }
+// BatchImportErrorDetail 描述了批量导入中单行数据的错误信息
+type BatchImportErrorDetail struct {
+	RowNumber int      `json:"rowNumber"`         // CSV中的原始行号 (从1开始计数，包括表头)
+	RowData   []string `json:"rowData,omitempty"` // 可选，原始行数据
+	Reason    string   `json:"reason"`            // 错误原因
+}
+
+// BatchImportResponse 定义了批量导入员工的响应结构
+type BatchImportResponse struct {
+	Message      string                   `json:"message"`
+	SuccessCount int                      `json:"successCount"`
+	ErrorCount   int                      `json:"errorCount"`
+	Errors       []BatchImportErrorDetail `json:"errors,omitempty"`
+}
 
 // CreateEmployee godoc
 // @Summary 新增一个员工
@@ -58,17 +62,17 @@ type PagedEmployeesData struct {
 // @Router /employees [post]
 // @Security BearerAuth
 func (h *EmployeeHandler) CreateEmployee(c *gin.Context) {
-	var payload CreateEmployeePayload
+	var payload models.CreateEmployeePayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		utils.RespondValidationError(c, err.Error())
 		return
 	}
 
 	employeeToCreate := &models.Employee{
-		EmployeeID: payload.EmployeeID,
-		FullName:   payload.FullName,
-		Department: payload.Department,
-		// EmploymentStatus 将由服务层或模型默认设置
+		FullName:    payload.FullName,
+		PhoneNumber: payload.PhoneNumber,
+		Email:       payload.Email,
+		Department:  payload.Department,
 	}
 
 	createdEmployee, err := h.service.CreateEmployee(employeeToCreate)
@@ -261,4 +265,135 @@ func (h *EmployeeHandler) UpdateEmployee(c *gin.Context) {
 	}
 
 	utils.RespondSuccess(c, http.StatusOK, updatedEmployee, "员工信息更新成功")
+}
+
+// BatchImportEmployees godoc
+// @Summary 批量导入员工数据 (CSV)
+// @Description 通过上传 CSV 文件批量导入员工。CSV文件应包含表头：fullName,phoneNumber,email,department。顺序必须一致，表头自身也会被计入行号。
+// @Tags Employees
+// @Accept multipart/form-data
+// @Produce json
+// @Param file formData file true "包含员工数据的 CSV 文件 (表头: fullName,phoneNumber,email,department)"
+// @Success 200 {object} utils.SuccessResponse{data=BatchImportResponse} "导入结果摘要"
+// @Failure 400 {object} utils.APIErrorResponse "请求错误，例如文件未提供、文件格式错误或CSV表头不匹配"
+// @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
+// @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
+// @Router /employees/import [post]
+// @Security BearerAuth
+func (h *EmployeeHandler) BatchImportEmployees(c *gin.Context) {
+	file, header, err := c.Request.FormFile("file")
+	if err != nil {
+		utils.RespondAPIError(c, http.StatusBadRequest, "无法读取上传的文件: "+err.Error(), nil)
+		return
+	}
+	defer file.Close()
+
+	if !strings.HasSuffix(strings.ToLower(header.Filename), ".csv") {
+		utils.RespondAPIError(c, http.StatusBadRequest, "文件格式无效，请上传 CSV 文件", nil)
+		return
+	}
+
+	reader := csv.NewReader(bufio.NewReader(file))
+	var successCount, errorCount int
+	var importErrors []BatchImportErrorDetail
+
+	// 读取表头
+	csvHeader, err := reader.Read()
+	if err == io.EOF {
+		utils.RespondAPIError(c, http.StatusBadRequest, "CSV 文件为空或只有表头", nil)
+		return
+	}
+	if err != nil {
+		utils.RespondAPIError(c, http.StatusBadRequest, "无法读取 CSV 表头: "+err.Error(), nil)
+		return
+	}
+
+	// 校验表头 (fullName,phoneNumber,email,department)
+	expectedHeader := []string{"fullName", "phoneNumber", "email", "department"}
+	if !utils.CompareStringSlices(csvHeader, expectedHeader) {
+		utils.RespondAPIError(c, http.StatusBadRequest, fmt.Sprintf("CSV 表头与预期不符。预期: %v, 得到: %v", expectedHeader, csvHeader), nil)
+		return
+	}
+
+	rowNum := 1 // 从1开始计数，表头是第1行
+	for {
+		rowNum++
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			importErrors = append(importErrors, BatchImportErrorDetail{RowNumber: rowNum, Reason: "无法读取行数据: " + err.Error()})
+			errorCount++
+			continue
+		}
+
+		if len(record) != len(expectedHeader) {
+			importErrors = append(importErrors, BatchImportErrorDetail{RowNumber: rowNum, RowData: record, Reason: fmt.Sprintf("列数与表头不匹配，期望 %d 列，得到 %d 列", len(expectedHeader), len(record))})
+			errorCount++
+			continue
+		}
+
+		fullName := strings.TrimSpace(record[0])
+		phoneNumberStr := strings.TrimSpace(record[1])
+		emailStr := strings.TrimSpace(record[2])
+		departmentStr := strings.TrimSpace(record[3])
+
+		if fullName == "" {
+			importErrors = append(importErrors, BatchImportErrorDetail{RowNumber: rowNum, RowData: record, Reason: "fullName 不能为空"})
+			errorCount++
+			continue
+		}
+
+		employeeToCreate := &models.Employee{
+			FullName: fullName,
+		}
+
+		if phoneNumberStr != "" {
+			employeeToCreate.PhoneNumber = &phoneNumberStr
+		} else {
+			employeeToCreate.PhoneNumber = nil // 明确设为nil，如果为空字符串
+		}
+
+		if emailStr != "" {
+			// 可在此处添加 email 格式的基础校验，或依赖 service/model 层的校验
+			employeeToCreate.Email = &emailStr
+		} else {
+			employeeToCreate.Email = nil
+		}
+
+		if departmentStr != "" {
+			employeeToCreate.Department = &departmentStr
+		} else {
+			employeeToCreate.Department = nil
+		}
+
+		_, err = h.service.CreateEmployee(employeeToCreate) // service 层会自动生成 EmployeeID
+		if err != nil {
+			// 检查是否是已知的工号冲突错误 (由repo层转换而来)
+			// 或者其他业务校验错误 (例如，如果未来手机或邮箱也要求唯一且冲突了)
+			reason := err.Error()
+			if errors.Is(err, repositories.ErrEmployeeIDExists) { // 理论上，由于ID是生成的，这个错误概率极低，但万一发生
+				reason = "生成员工工号时发生冲突，请重试该行数据"
+			} else if strings.Contains(err.Error(), "value too long for type character varying(50)") && strings.Contains(err.Error(), "phone_number") {
+				reason = "phoneNumber 过长 (最大50字符)"
+			} else if strings.Contains(err.Error(), "value too long for type character varying(255)") && strings.Contains(err.Error(), "email") {
+				reason = "email 过长 (最大255字符)"
+			} // 可以根据 service 层可能返回的错误类型添加更多处理
+
+			importErrors = append(importErrors, BatchImportErrorDetail{RowNumber: rowNum, RowData: record, Reason: reason})
+			errorCount++
+		} else {
+			successCount++
+		}
+	}
+
+	response := BatchImportResponse{
+		Message:      fmt.Sprintf("员工数据导入处理完成。成功: %d, 失败: %d", successCount, errorCount),
+		SuccessCount: successCount,
+		ErrorCount:   errorCount,
+		Errors:       importErrors,
+	}
+
+	utils.RespondSuccess(c, http.StatusOK, response, response.Message)
 }

@@ -33,26 +33,47 @@ func NewGormEmployeeRepository(db *gorm.DB) EmployeeRepository {
 
 // CreateEmployee 在数据库中创建一个新的员工记录
 func (r *gormEmployeeRepository) CreateEmployee(employee *models.Employee) (*models.Employee, error) {
-	// 预先检查 employeeId 是否已存在
-	var existing models.Employee
-	if err := r.db.Unscoped().Where("employee_id = ?", employee.EmployeeID).First(&existing).Error; err == nil {
-		// 如果找到了记录（即使是软删除的），也认为工号已存在，以防止恢复时冲突或业务逻辑混乱
-		return nil, ErrEmployeeIDExists
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		// 如果是其他查询错误
-		return nil, err
-	}
+	// 由于 EmployeeID 现在由系统生成（在服务层完成赋值），
+	// 此处不再需要预先检查 EmployeeID 是否已存在。
+	// 唯一性将由数据库的 UNIQUE 约束来保证。
+	// 如果生成算法出现碰撞（极小概率），数据库的 Create 操作会失败并返回错误。
 
-	// 如果记录未找到，则创建新记录
+	// var existing models.Employee
+	// if err := r.db.Unscoped().Where("employee_id = ?", employee.EmployeeID).First(&existing).Error; err == nil {
+	// 	return nil, ErrEmployeeIDExists
+	// } else if !errors.Is(err, gorm.ErrRecordNotFound) {
+	// 	return nil, err
+	// }
+
+	// 直接创建新记录
 	if err := r.db.Create(employee).Error; err != nil {
 		// GORM 通常会将数据库的唯一约束违例错误包装起来
-		// 对于 SQLite，错误信息可能包含 "UNIQUE constraint failed"
-		if strings.Contains(strings.ToLower(err.Error()), "unique constraint") || strings.Contains(strings.ToLower(err.Error()), "duplicate key") {
-			if strings.Contains(err.Error(), "employees.employee_id") { // 更精确地判断是 employee_id 的唯一约束
-				return nil, ErrEmployeeIDExists
-			}
+		// 例如，对于 SQLite，错误信息可能包含 "UNIQUE constraint failed: employees.employee_id"
+		// 对于 MySQL，可能是 "Error 1062: Duplicate entry 'some_employee_id' for key 'employee_id_unique_constraint_name'"
+		// 我们可以检查这个错误是否与 employee_id 的唯一性有关，并返回一个更具体的错误，
+		// 但为了保持仓库层的通用性，通常直接返回数据库错误，由服务层或 handler 层决定如何解释和响应。
+		// 如果需要更精细的控制，可以解析 err.Error() 字符串，但这可能因数据库类型而异。
+		// 或者，GORM 可能提供更结构化的方式来识别特定类型的约束违例，但这需要查阅GORM文档。
+		// 暂时，我们依赖 ErrEmployeeIDExists（如果它仍然被服务层或handler层使用并期望）。
+		// 但由于我们这里不再主动检查并返回 ErrEmployeeIDExists，如果上层还依赖它，需要调整。
+		// 当前服务层 CreateEmployee 的错误处理是直接向上传递 err。
+		// handler 层会捕获 repositories.ErrEmployeeIDExists，但这个错误现在不会从这里发出。
+		// handler 层需要调整为捕获更通用的数据库错误，或者服务层需要转换这个错误。
+
+		// 为了保持与之前 handler 行为的一致性（当工号冲突时返回 409 Conflict），
+		// 我们在这里可以尝试判断是否是 employee_id 的唯一约束错误。
+		if strings.Contains(strings.ToLower(err.Error()), "unique constraint") && strings.Contains(strings.ToLower(err.Error()), "employee_id") {
+			return nil, ErrEmployeeIDExists // 复用之前的错误类型，以便handler可以正确处理
 		}
-		return nil, err
+		if strings.Contains(strings.ToLower(err.Error()), "duplicate key") && strings.Contains(strings.ToLower(err.Error()), "employee_id") { // PostgreSQL, SQL Server
+			return nil, ErrEmployeeIDExists
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "duplicate entry") && strings.Contains(strings.ToLower(err.Error()), "employees.employee_id") { // MySQL like
+			return nil, ErrEmployeeIDExists
+		}
+		// ... 其他数据库的唯一约束错误检查
+
+		return nil, err // 返回原始错误，如果不是已知的 employee_id 唯一约束冲突
 	}
 	return employee, nil
 }

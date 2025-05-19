@@ -33,17 +33,25 @@ func NewEmployeeService(repo repositories.EmployeeRepository) EmployeeService {
 
 // CreateEmployee 处理创建员工的业务逻辑
 func (s *employeeService) CreateEmployee(employee *models.Employee) (*models.Employee, error) {
-	// 可以在这里添加更复杂的业务规则，例如默认值设置等
-	// 根据文档，employmentStatus 默认为 "Active"，这应该由模型或数据库层面处理，但也可在此校验或强制设置
+	// 自动生成 EmployeeID 的逻辑已移至 models.Employee 的 GORM Hooks (BeforeCreate 和 AfterCreate)。
+	// employee.EmployeeID = "EMP" + strconv.FormatInt(time.Now().UnixNano(), 10)
+
+	// 设置默认在职状态 (如果模型或数据库层面没有默认值)
 	if employee.EmploymentStatus == "" {
-		employee.EmploymentStatus = "Active" // 如果模型中没有默认值，这里可以补上
+		employee.EmploymentStatus = "Active"
 	}
+
+	// PhoneNumber 和 Email 等字段已在 handler 中从 payload 赋值。
 
 	createdEmployee, err := s.repo.CreateEmployee(employee)
 	if err != nil {
-		// 错误可以直接向上传递，handler 层会根据错误类型进行不同响应
+		// 错误处理：如果 repo.CreateEmployee 返回错误（例如，由于数据库约束，包括唯一性冲突），
+		// 或者如果 GORM Hooks (BeforeCreate/AfterCreate) 返回错误，这些错误会传递到这里。
+		// 特别地，如果 AfterCreate Hook 中更新 EmployeeID 失败（例如，极罕见的最终ID冲突），会返回错误。
+		// ErrEmployeeIDExists 这个特定的错误现在主要由 repository 层在检测到 employee_id 的唯一约束违例时返回。
 		return nil, err
 	}
+	// 此时，createdEmployee 对象中的 EmployeeID 字段应该已经被 AfterCreate hook 更新为最终的格式化ID。
 	return createdEmployee, nil
 }
 

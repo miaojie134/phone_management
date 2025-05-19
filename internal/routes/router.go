@@ -68,28 +68,10 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			employeeRoutes.GET("/:employeeId", employeeHandler.GetEmployeeByID)
 			// POST /api/v1/employees/:employeeId/update
 			employeeRoutes.POST("/:employeeId/update", employeeHandler.UpdateEmployee)
+			// POST /api/v1/employees/import -批量导入员工路由
+			employeeRoutes.POST("/import", employeeHandler.BatchImportEmployees)
 		}
 
-		// 示例：其他需要JWT认证的路由组 (如 auth_routes.go 中曾有的 /data/me 示例)
-		/*
-			securedDataGroup := apiV1.Group("/data")
-			securedDataGroup.Use(jwtAuthMiddleware)
-			{
-				securedDataGroup.GET("/me", func(c *gin.Context) {
-					userID := c.MustGet("userID").(uint)
-					username := c.MustGet("username").(string)
-					role := c.MustGet("role").(string)
-					jti := c.GetString("jti")
-					c.JSON(http.StatusOK, gin.H{
-						"message":  "This is a protected route",
-						"userID":   userID,
-						"username": username,
-						"role":     role,
-						"jti":      jti,
-					})
-				})
-			}
-		*/
 	}
 
 	// Swagger 文档路由 (如果使用 swaggo)
