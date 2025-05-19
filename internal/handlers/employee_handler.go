@@ -26,6 +26,16 @@ func NewEmployeeHandler(service services.EmployeeService) *EmployeeHandler {
 	return &EmployeeHandler{service: service}
 }
 
+// CreateEmployeePayload 定义了创建员工请求的 JSON 结构体
+// 注意：EmployeeID 已被移除，因为它由系统在后端自动生成。
+type CreateEmployeePayload struct {
+	FullName    string  `json:"fullName" binding:"required,max=255"`
+	PhoneNumber *string `json:"phoneNumber,omitempty" binding:"omitempty,len=11,numeric"` // 手机号：可选，但如果提供，必须是11位数字
+	Email       *string `json:"email,omitempty" binding:"omitempty,email,max=255"`        // 可选，需要是合法的email格式，最大长度255
+	Department  *string `json:"department,omitempty" binding:"omitempty,max=255"`
+	// EmploymentStatus 默认为 "Active"，在模型或服务层处理，此处不需传递
+}
+
 // PagedEmployeesData 定义了员工列表的分页响应结构
 type PagedEmployeesData struct {
 	Items      []models.Employee `json:"items"`
@@ -62,7 +72,7 @@ type BatchImportResponse struct {
 // @Router /employees [post]
 // @Security BearerAuth
 func (h *EmployeeHandler) CreateEmployee(c *gin.Context) {
-	var payload models.CreateEmployeePayload
+	var payload CreateEmployeePayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		utils.RespondValidationError(c, err.Error())
 		return
@@ -77,8 +87,10 @@ func (h *EmployeeHandler) CreateEmployee(c *gin.Context) {
 
 	createdEmployee, err := h.service.CreateEmployee(employeeToCreate)
 	if err != nil {
-		if errors.Is(err, repositories.ErrEmployeeIDExists) {
-			utils.RespondConflictError(c, repositories.ErrEmployeeIDExists.Error())
+		if errors.Is(err, repositories.ErrEmployeeIDExists) || errors.Is(err, services.ErrPhoneNumberExists) || errors.Is(err, services.ErrEmailExists) {
+			utils.RespondConflictError(c, err.Error())
+		} else if errors.Is(err, services.ErrInvalidPhoneNumberFormat) || errors.Is(err, services.ErrInvalidPhoneNumberPrefix) {
+			utils.RespondAPIError(c, http.StatusBadRequest, err.Error(), nil)
 		} else {
 			utils.RespondInternalServerError(c, "创建员工失败", err.Error())
 		}
@@ -370,16 +382,12 @@ func (h *EmployeeHandler) BatchImportEmployees(c *gin.Context) {
 
 		_, err = h.service.CreateEmployee(employeeToCreate) // service 层会自动生成 EmployeeID
 		if err != nil {
-			// 检查是否是已知的工号冲突错误 (由repo层转换而来)
-			// 或者其他业务校验错误 (例如，如果未来手机或邮箱也要求唯一且冲突了)
-			reason := err.Error()
-			if errors.Is(err, repositories.ErrEmployeeIDExists) { // 理论上，由于ID是生成的，这个错误概率极低，但万一发生
-				reason = "生成员工工号时发生冲突，请重试该行数据"
-			} else if strings.Contains(err.Error(), "value too long for type character varying(50)") && strings.Contains(err.Error(), "phone_number") {
-				reason = "phoneNumber 过长 (最大50字符)"
-			} else if strings.Contains(err.Error(), "value too long for type character varying(255)") && strings.Contains(err.Error(), "email") {
-				reason = "email 过长 (最大255字符)"
-			} // 可以根据 service 层可能返回的错误类型添加更多处理
+			reason := err.Error() // 默认使用服务层/仓库层返回的错误信息
+
+			// 对于特定的、用户友好的校验错误，可以直接使用它们
+			// services.ErrInvalidPhoneNumberFormat, services.ErrInvalidPhoneNumberPrefix,
+			// services.ErrPhoneNumberExists, services.ErrEmailExists, repositories.ErrEmployeeIDExists
+			// 这些错误的 Error() 方法返回的字符串已经是比较清晰的中文了。
 
 			importErrors = append(importErrors, BatchImportErrorDetail{RowNumber: rowNum, RowData: record, Reason: reason})
 			errorCount++

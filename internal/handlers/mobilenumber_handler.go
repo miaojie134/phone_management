@@ -76,8 +76,8 @@ func (h *MobileNumberHandler) CreateMobileNumber(c *gin.Context) {
 	// 服务层 CreateMobileNumber 方法签名已更新，不再需要第二个 applicantBusinessID 参数
 	createdMobileNumber, err := h.service.CreateMobileNumber(mobileNumberToCreate)
 	if err != nil {
-		if errors.Is(err, repositories.ErrPhoneNumberExists) {
-			utils.RespondConflictError(c, repositories.ErrPhoneNumberExists.Error())
+		if errors.Is(err, repositories.ErrMobileNumberStringConflict) {
+			utils.RespondConflictError(c, repositories.ErrMobileNumberStringConflict.Error())
 		} else if errors.Is(err, services.ErrEmployeeNotFound) {
 			utils.RespondAPIError(c, http.StatusNotFound, "办卡人员工工号未找到", "employeeId: "+payload.ApplicantEmployeeID)
 		} else {

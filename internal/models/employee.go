@@ -12,14 +12,14 @@ import (
 // Employee 对应于数据库中的 employees 表
 type Employee struct {
 	ID               int64          `json:"id" gorm:"primaryKey;autoIncrement"`
-	EmployeeID       string         `json:"employeeId" gorm:"column:employee_id;unique;not null;size:10"`                       // 员工业务工号, 例如 EMP0000001
-	FullName         string         `json:"fullName" gorm:"column:full_name;not null;size:255"`                                 // 姓名
-	PhoneNumber      *string        `json:"phoneNumber,omitempty" gorm:"column:phone_number;size:50;index"`                     // 员工手机号码, 可选, 创建索引方便查询
-	Email            *string        `json:"email,omitempty" gorm:"column:email;size:255;index"`                                 // 员工邮箱, 可选, 创建索引方便查询
-	Department       *string        `json:"department,omitempty" gorm:"column:department;size:255"`                             // 部门
-	EmploymentStatus string         `json:"employmentStatus" gorm:"column:employment_status;not null;default:'Active';size:50"` // 在职状态 (例如: 'Active', 'Departed')
-	HireDate         *time.Time     `json:"hireDate,omitempty" gorm:"column:hire_date;type:date"`                               // 入职日期
-	TerminationDate  *time.Time     `json:"terminationDate,omitempty" gorm:"column:termination_date;type:date"`                 // 离职日期
+	EmployeeID       string         `json:"employeeId" gorm:"column:employee_id;unique;not null;size:10"`                                      // 员工业务工号, 例如 EMP0000001
+	FullName         string         `json:"fullName" gorm:"column:full_name;not null;size:255"`                                                // 姓名
+	PhoneNumber      *string        `json:"phoneNumber,omitempty" gorm:"column:phone_number;size:11;uniqueIndex:idx_phone_number_not_deleted"` // 员工手机号码, 11位, 可选, 唯一 (NULLS NOT DISTINCT)
+	Email            *string        `json:"email,omitempty" gorm:"column:email;size:255;uniqueIndex:idx_email_not_deleted"`                    // 员工邮箱, 可选, 唯一 (NULLS NOT DISTINCT)
+	Department       *string        `json:"department,omitempty" gorm:"column:department;size:255"`                                            // 部门
+	EmploymentStatus string         `json:"employmentStatus" gorm:"column:employment_status;not null;default:'Active';size:50"`                // 在职状态 (例如: 'Active', 'Departed')
+	HireDate         *time.Time     `json:"hireDate,omitempty" gorm:"column:hire_date;type:date"`                                              // 入职日期
+	TerminationDate  *time.Time     `json:"terminationDate,omitempty" gorm:"column:termination_date;type:date"`                                // 离职日期
 	CreatedAt        time.Time      `json:"createdAt" gorm:"column:created_at;not null;autoCreateTime"`
 	UpdatedAt        time.Time      `json:"updatedAt" gorm:"column:updated_at;not null;autoUpdateTime"`
 	DeletedAt        gorm.DeletedAt `json:"deletedAt,omitempty" gorm:"index"`
@@ -79,16 +79,6 @@ type EmployeeDetailResponse struct {
 	UpdatedAt            time.Time               `json:"updatedAt"`
 	HandledMobileNumbers []MobileNumberBasicInfo `json:"handledMobileNumbers,omitempty"` // 作为办卡人的号码列表
 	UsingMobileNumbers   []MobileNumberBasicInfo `json:"usingMobileNumbers,omitempty"`   // 作为当前使用人的号码列表
-}
-
-// CreateEmployeePayload 定义了创建员工请求的 JSON 结构体
-type CreateEmployeePayload struct {
-	// EmployeeID 由客户端提供，将由系统自动生成
-	FullName    string  `json:"fullName" binding:"required,max=255"`
-	PhoneNumber *string `json:"phoneNumber,omitempty" binding:"omitempty,max=50"`  // 可选，最大长度50
-	Email       *string `json:"email,omitempty" binding:"omitempty,email,max=255"` // 可选，需要是合法的email格式，最大长度255
-	Department  *string `json:"department,omitempty" binding:"omitempty,max=255"`
-	// EmploymentStatus 默认为 "Active"，在模型或服务层处理，此处不需传递
 }
 
 // UpdateEmployeePayload 定义了更新员工请求的 JSON 结构体

@@ -2,7 +2,9 @@ package services
 
 import (
 	"errors"
+	"strings"
 	"time"
+	"unicode"
 
 	// "github.com/phone_management/internal/handlers" // 移除此导入
 	"github.com/phone_management/internal/models"
@@ -11,6 +13,28 @@ import (
 
 // ErrEmployeeNotFound 表示员工未找到的错误 (虽然创建时不用，但通常服务层会有)
 var ErrEmployeeNotFound = errors.New("员工未找到")
+
+// ErrPhoneNumberExists 表示手机号码已存在 (服务层错误)
+var ErrPhoneNumberExists = errors.New("手机号码已存在")
+
+// ErrEmailExists 表示邮箱已存在 (服务层错误)
+var ErrEmailExists = errors.New("邮箱已存在")
+
+// ErrInvalidPhoneNumberFormat 表示手机号码格式不正确 (例如非纯数字、长度不对等)
+var ErrInvalidPhoneNumberFormat = errors.New("无效的手机号码格式")
+
+// ErrInvalidPhoneNumberPrefix 表示手机号码前缀不正确 (例如不是以'1'开头)
+var ErrInvalidPhoneNumberPrefix = errors.New("无效的手机号码前缀，必须以1开头")
+
+// isNumeric 辅助函数，检查字符串是否只包含数字
+func isNumeric(s string) bool {
+	for _, r := range s {
+		if !unicode.IsDigit(r) {
+			return false
+		}
+	}
+	return true
+}
 
 // EmployeeService 定义了员工服务的接口
 type EmployeeService interface {
@@ -33,25 +57,56 @@ func NewEmployeeService(repo repositories.EmployeeRepository) EmployeeService {
 
 // CreateEmployee 处理创建员工的业务逻辑
 func (s *employeeService) CreateEmployee(employee *models.Employee) (*models.Employee, error) {
-	// 自动生成 EmployeeID 的逻辑已移至 models.Employee 的 GORM Hooks (BeforeCreate 和 AfterCreate)。
-	// employee.EmployeeID = "EMP" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	// 手机号码校验 (如果提供了手机号)
+	if employee.PhoneNumber != nil && *employee.PhoneNumber != "" {
+		phone := *employee.PhoneNumber
 
-	// 设置默认在职状态 (如果模型或数据库层面没有默认值)
+		// 1. 长度必须为11位
+		if len(phone) != 11 {
+			return nil, ErrInvalidPhoneNumberFormat // 或者更具体的长度错误，但格式错误已包含此意
+		}
+		// 2. 必须全部是数字
+		if !isNumeric(phone) { // 使用辅助函数
+			return nil, ErrInvalidPhoneNumberFormat
+		}
+		// 3. 必须以数字 '1' 开头
+		if !strings.HasPrefix(phone, "1") {
+			return nil, ErrInvalidPhoneNumberPrefix
+		}
+
+		// 唯一性校验 (已存在逻辑)
+		_, err := s.repo.GetEmployeeByPhoneNumber(phone)
+		if err == nil {
+			return nil, ErrPhoneNumberExists
+		} else if !errors.Is(err, repositories.ErrRecordNotFound) {
+			return nil, err
+		}
+	}
+
+	// 邮箱唯一性校验 (已存在逻辑)
+	if employee.Email != nil && *employee.Email != "" {
+		_, err := s.repo.GetEmployeeByEmail(*employee.Email)
+		if err == nil {
+			return nil, ErrEmailExists
+		} else if !errors.Is(err, repositories.ErrRecordNotFound) {
+			return nil, err
+		}
+	}
+
 	if employee.EmploymentStatus == "" {
 		employee.EmploymentStatus = "Active"
 	}
 
-	// PhoneNumber 和 Email 等字段已在 handler 中从 payload 赋值。
-
 	createdEmployee, err := s.repo.CreateEmployee(employee)
 	if err != nil {
-		// 错误处理：如果 repo.CreateEmployee 返回错误（例如，由于数据库约束，包括唯一性冲突），
-		// 或者如果 GORM Hooks (BeforeCreate/AfterCreate) 返回错误，这些错误会传递到这里。
-		// 特别地，如果 AfterCreate Hook 中更新 EmployeeID 失败（例如，极罕见的最终ID冲突），会返回错误。
-		// ErrEmployeeIDExists 这个特定的错误现在主要由 repository 层在检测到 employee_id 的唯一约束违例时返回。
+		if errors.Is(err, repositories.ErrEmployeePhoneNumberConflict) {
+			return nil, ErrPhoneNumberExists
+		}
+		if errors.Is(err, repositories.ErrEmployeeEmailConflict) {
+			return nil, ErrEmailExists
+		}
 		return nil, err
 	}
-	// 此时，createdEmployee 对象中的 EmployeeID 字段应该已经被 AfterCreate hook 更新为最终的格式化ID。
 	return createdEmployee, nil
 }
 

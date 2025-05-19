@@ -11,6 +11,12 @@ import (
 // ErrEmployeeIDExists 表示员工工号已存在
 var ErrEmployeeIDExists = errors.New("员工工号已存在")
 
+// ErrEmployeePhoneNumberConflict 表示员工的手机号码已存在
+var ErrEmployeePhoneNumberConflict = errors.New("员工手机号码已存在")
+
+// ErrEmployeeEmailConflict 表示员工的邮箱已存在
+var ErrEmployeeEmailConflict = errors.New("员工邮箱已存在")
+
 // EmployeeRepository 定义了员工数据仓库的接口
 type EmployeeRepository interface {
 	CreateEmployee(employee *models.Employee) (*models.Employee, error)
@@ -18,6 +24,8 @@ type EmployeeRepository interface {
 	GetEmployeeDetailByEmployeeID(employeeID string) (*models.EmployeeDetailResponse, error)
 	GetEmployeeByEmployeeID(employeeID string) (*models.Employee, error)
 	UpdateEmployee(employeeID string, updates map[string]interface{}) (*models.Employee, error)
+	GetEmployeeByPhoneNumber(phoneNumber string) (*models.Employee, error)
+	GetEmployeeByEmail(email string) (*models.Employee, error)
 	// 未来可以扩展其他方法，如 GetEmployeeByID, UpdateEmployee, DeleteEmployee 等
 }
 
@@ -33,48 +41,28 @@ func NewGormEmployeeRepository(db *gorm.DB) EmployeeRepository {
 
 // CreateEmployee 在数据库中创建一个新的员工记录
 func (r *gormEmployeeRepository) CreateEmployee(employee *models.Employee) (*models.Employee, error) {
-	// 由于 EmployeeID 现在由系统生成（在服务层完成赋值），
-	// 此处不再需要预先检查 EmployeeID 是否已存在。
-	// 唯一性将由数据库的 UNIQUE 约束来保证。
-	// 如果生成算法出现碰撞（极小概率），数据库的 Create 操作会失败并返回错误。
+	// EmployeeID 的生成由 model hooks (BeforeCreate, AfterCreate) 处理
+	// 在 AfterCreate hook 中，会执行一次 update 来设置最终的 EmployeeID
+	// 因此，这里的 Create 操作实际上是用一个临时的 EmployeeID (如果 BeforeCreate hook 被触发了)
 
-	// var existing models.Employee
-	// if err := r.db.Unscoped().Where("employee_id = ?", employee.EmployeeID).First(&existing).Error; err == nil {
-	// 	return nil, ErrEmployeeIDExists
-	// } else if !errors.Is(err, gorm.ErrRecordNotFound) {
-	// 	return nil, err
-	// }
-
-	// 直接创建新记录
 	if err := r.db.Create(employee).Error; err != nil {
-		// GORM 通常会将数据库的唯一约束违例错误包装起来
-		// 例如，对于 SQLite，错误信息可能包含 "UNIQUE constraint failed: employees.employee_id"
-		// 对于 MySQL，可能是 "Error 1062: Duplicate entry 'some_employee_id' for key 'employee_id_unique_constraint_name'"
-		// 我们可以检查这个错误是否与 employee_id 的唯一性有关，并返回一个更具体的错误，
-		// 但为了保持仓库层的通用性，通常直接返回数据库错误，由服务层或 handler 层决定如何解释和响应。
-		// 如果需要更精细的控制，可以解析 err.Error() 字符串，但这可能因数据库类型而异。
-		// 或者，GORM 可能提供更结构化的方式来识别特定类型的约束违例，但这需要查阅GORM文档。
-		// 暂时，我们依赖 ErrEmployeeIDExists（如果它仍然被服务层或handler层使用并期望）。
-		// 但由于我们这里不再主动检查并返回 ErrEmployeeIDExists，如果上层还依赖它，需要调整。
-		// 当前服务层 CreateEmployee 的错误处理是直接向上传递 err。
-		// handler 层会捕获 repositories.ErrEmployeeIDExists，但这个错误现在不会从这里发出。
-		// handler 层需要调整为捕获更通用的数据库错误，或者服务层需要转换这个错误。
-
-		// 为了保持与之前 handler 行为的一致性（当工号冲突时返回 409 Conflict），
-		// 我们在这里可以尝试判断是否是 employee_id 的唯一约束错误。
-		if strings.Contains(strings.ToLower(err.Error()), "unique constraint") && strings.Contains(strings.ToLower(err.Error()), "employee_id") {
-			return nil, ErrEmployeeIDExists // 复用之前的错误类型，以便handler可以正确处理
+		// 检查是否是已知的唯一约束错误
+		// 注意：错误字符串的判断可能因数据库类型而异，这里尝试覆盖常见情况
+		lowerErr := strings.ToLower(err.Error())
+		if strings.Contains(lowerErr, "unique constraint") || strings.Contains(lowerErr, "duplicate key") || strings.Contains(lowerErr, "duplicate entry") {
+			if strings.Contains(lowerErr, "employee_id") || strings.Contains(lowerErr, "employees_employee_id_key") /* PostgreSQL specific key name example */ {
+				return nil, ErrEmployeeIDExists
+			}
+			if strings.Contains(lowerErr, "phone_number") || strings.Contains(lowerErr, "idx_phone_number_not_deleted") {
+				return nil, ErrEmployeePhoneNumberConflict
+			}
+			if strings.Contains(lowerErr, "email") || strings.Contains(lowerErr, "idx_email_not_deleted") {
+				return nil, ErrEmployeeEmailConflict
+			}
 		}
-		if strings.Contains(strings.ToLower(err.Error()), "duplicate key") && strings.Contains(strings.ToLower(err.Error()), "employee_id") { // PostgreSQL, SQL Server
-			return nil, ErrEmployeeIDExists
-		}
-		if strings.Contains(strings.ToLower(err.Error()), "duplicate entry") && strings.Contains(strings.ToLower(err.Error()), "employees.employee_id") { // MySQL like
-			return nil, ErrEmployeeIDExists
-		}
-		// ... 其他数据库的唯一约束错误检查
-
-		return nil, err // 返回原始错误，如果不是已知的 employee_id 唯一约束冲突
+		return nil, err // 返回原始错误，如果不是已知的唯一约束冲突或无法判断
 	}
+	// 创建成功后，employee 对象中的 EmployeeID 应该已经被 AfterCreate hook 更新
 	return employee, nil
 }
 
@@ -219,4 +207,28 @@ func (r *gormEmployeeRepository) UpdateEmployee(employeeID string, updates map[s
 		return nil, err // 理论上此时应该能找到
 	}
 	return &updatedEmployee, nil
+}
+
+// GetEmployeeByPhoneNumber 根据手机号码查询员工 (排除软删除的)
+func (r *gormEmployeeRepository) GetEmployeeByPhoneNumber(phoneNumber string) (*models.Employee, error) {
+	var employee models.Employee
+	if err := r.db.Where("phone_number = ?", phoneNumber).First(&employee).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrRecordNotFound // 复用已定义的记录未找到错误
+		}
+		return nil, err
+	}
+	return &employee, nil
+}
+
+// GetEmployeeByEmail 根据邮箱查询员工 (排除软删除的)
+func (r *gormEmployeeRepository) GetEmployeeByEmail(email string) (*models.Employee, error) {
+	var employee models.Employee
+	if err := r.db.Where("email = ?", email).First(&employee).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrRecordNotFound
+		}
+		return nil, err
+	}
+	return &employee, nil
 }

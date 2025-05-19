@@ -9,8 +9,8 @@ import (
 	"gorm.io/gorm"
 )
 
-// ErrPhoneNumberExists 表示手机号码已存在
-var ErrPhoneNumberExists = errors.New("手机号码已存在")
+// ErrMobileNumberStringConflict 表示该手机号码的记录已存在
+var ErrMobileNumberStringConflict = errors.New("该手机号码的记录已存在")
 
 // ErrRecordNotFound 表示记录未找到，可以重用 gorm 的错误或自定义
 var ErrRecordNotFound = gorm.ErrRecordNotFound
@@ -50,17 +50,17 @@ func NewGormMobileNumberRepository(db *gorm.DB) MobileNumberRepository {
 // mobileNumber.ApplicantEmployeeID (string) 已经在模型中设置
 func (r *gormMobileNumberRepository) CreateMobileNumber(mobileNumber *models.MobileNumber) (*models.MobileNumber, error) {
 	var existing models.MobileNumber
+	// 检查 phone_number 字符串是否已作为记录存在
 	if err := r.db.Where("phone_number = ?", mobileNumber.PhoneNumber).First(&existing).Error; err == nil {
-		return nil, ErrPhoneNumberExists
+		return nil, ErrMobileNumberStringConflict // 使用新的错误变量名
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
 
 	if err := r.db.Create(mobileNumber).Error; err != nil {
 		if strings.Contains(strings.ToLower(err.Error()), "unique constraint") || strings.Contains(strings.ToLower(err.Error()), "duplicate key") {
-			// 进一步判断是否是 phone_number 的唯一约束
 			if strings.Contains(err.Error(), models.MobileNumber{}.TableName()+".phone_number") || strings.Contains(err.Error(), "MobileNumbers.phone_number") {
-				return nil, ErrPhoneNumberExists
+				return nil, ErrMobileNumberStringConflict // 使用新的错误变量名
 			}
 		}
 		return nil, err
