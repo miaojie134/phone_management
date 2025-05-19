@@ -2,19 +2,19 @@ package services
 
 import (
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/phone_management/internal/models"
 	"github.com/phone_management/internal/repositories"
+	"github.com/phone_management/pkg/utils"
 )
 
 // ErrMobileNumberNotFound 表示手机号码未找到的错误
 var ErrMobileNumberNotFound = errors.New("手机号码未找到")
 
 // 新增错误定义
-var ErrInvalidMobileNumberFormat = errors.New("手机号码必须是11位数字")
-var ErrInvalidMobileNumberPrefix = errors.New("手机号码必须以'1'开头")
+// var ErrInvalidMobileNumberFormat = errors.New("手机号码必须是11位数字")
+// var ErrInvalidMobileNumberPrefix = errors.New("手机号码必须以'1'开头")
 
 // 新增与办卡人姓名解析相关的错误
 var ErrApplicantNameNotFound = errors.New("办卡人姓名未找到")
@@ -49,18 +49,9 @@ func NewMobileNumberService(repo repositories.MobileNumberRepository, empService
 // CreateMobileNumber 处理创建手机号码的业务逻辑
 // mobileNumber.ApplicantEmployeeID (string) 已经由 handler 层从 payload 设置
 func (s *mobileNumberService) CreateMobileNumber(mobileNumber *models.MobileNumber) (*models.MobileNumber, error) {
-	// 0. 校验手机号码格式
-	// 检查长度是否为11
-	if len(mobileNumber.PhoneNumber) != 11 {
-		return nil, ErrInvalidMobileNumberFormat
-	}
-	// 检查是否都是数字 (使用 employee_service.go 中的 isNumeric)
-	if !isNumeric(mobileNumber.PhoneNumber) {
-		return nil, ErrInvalidMobileNumberFormat
-	}
-	// 检查是否以'1'开头
-	if !strings.HasPrefix(mobileNumber.PhoneNumber, "1") {
-		return nil, ErrInvalidMobileNumberPrefix
+	// 0. 校验手机号码格式 (使用 utils 中的校验函数)
+	if err := utils.ValidatePhoneNumber(mobileNumber.PhoneNumber); err != nil {
+		return nil, err // 直接返回 utils 包中定义的错误
 	}
 
 	// 1. 验证 ApplicantEmployeeID (员工业务工号) 是否有效 (即员工是否存在)

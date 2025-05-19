@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"bufio"
 	"encoding/csv"
 	"errors"
 	"fmt"
@@ -14,6 +13,8 @@ import (
 	"github.com/phone_management/internal/repositories"
 	"github.com/phone_management/internal/services"
 	"github.com/phone_management/pkg/utils"
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/transform"
 )
 
 // EmployeeHandler 封装了员工相关的 HTTP 处理逻辑
@@ -87,10 +88,15 @@ func (h *EmployeeHandler) CreateEmployee(c *gin.Context) {
 
 	createdEmployee, err := h.service.CreateEmployee(employeeToCreate)
 	if err != nil {
-		if errors.Is(err, repositories.ErrEmployeeIDExists) || errors.Is(err, services.ErrPhoneNumberExists) || errors.Is(err, services.ErrEmailExists) {
+		// 处理来自服务层的唯一性冲突错误
+		if errors.Is(err, services.ErrPhoneNumberExists) || errors.Is(err, services.ErrEmailExists) || errors.Is(err, repositories.ErrEmployeeIDExists) {
 			utils.RespondConflictError(c, err.Error())
-		} else if errors.Is(err, services.ErrInvalidPhoneNumberFormat) || errors.Is(err, services.ErrInvalidPhoneNumberPrefix) {
+			// 处理来自服务层（通过 utils 包传递）的格式错误
+		} else if errors.Is(err, utils.ErrInvalidPhoneNumberFormat) || errors.Is(err, utils.ErrInvalidPhoneNumberPrefix) {
 			utils.RespondAPIError(c, http.StatusBadRequest, err.Error(), nil)
+			// 可选：如果 service 层也可能返回 utils.ErrInvalidEmailFormat (目前仅在handler的批量导入中校验)
+			// } else if errors.Is(err, utils.ErrInvalidEmailFormat) {
+			// 	 utils.RespondAPIError(c, http.StatusBadRequest, err.Error(), nil)
 		} else {
 			utils.RespondInternalServerError(c, "创建员工失败", err.Error())
 		}
@@ -305,7 +311,8 @@ func (h *EmployeeHandler) BatchImportEmployees(c *gin.Context) {
 		return
 	}
 
-	reader := csv.NewReader(bufio.NewReader(file))
+	// 兼容GBK和UTF-8编码
+	reader := csv.NewReader(transform.NewReader(file, simplifiedchinese.GBK.NewDecoder()))
 	var successCount, errorCount int
 	var importErrors []BatchImportErrorDetail
 
@@ -319,15 +326,18 @@ func (h *EmployeeHandler) BatchImportEmployees(c *gin.Context) {
 		utils.RespondAPIError(c, http.StatusBadRequest, "无法读取 CSV 表头: "+err.Error(), nil)
 		return
 	}
+	// 兼容 UTF-8 BOM (如果需要，已在 mobilenumber_handler 中添加，此处可以考虑也加上)
+	if len(csvHeader) > 0 {
+		csvHeader[0] = strings.TrimPrefix(csvHeader[0], "\uFEFF")
+	}
 
-	// 校验表头 (fullName,phoneNumber,email,department)
 	expectedHeader := []string{"fullName", "phoneNumber", "email", "department"}
 	if !utils.CompareStringSlices(csvHeader, expectedHeader) {
 		utils.RespondAPIError(c, http.StatusBadRequest, fmt.Sprintf("CSV 表头与预期不符。预期: %v, 得到: %v", expectedHeader, csvHeader), nil)
 		return
 	}
 
-	rowNum := 1 // 从1开始计数，表头是第1行
+	rowNum := 1
 	for {
 		rowNum++
 		record, err := reader.Read()
@@ -362,13 +372,22 @@ func (h *EmployeeHandler) BatchImportEmployees(c *gin.Context) {
 		}
 
 		if phoneNumberStr != "" {
+			if err := utils.ValidatePhoneNumber(phoneNumberStr); err != nil { // 使用 utils.ValidatePhoneNumber
+				importErrors = append(importErrors, BatchImportErrorDetail{RowNumber: rowNum, RowData: record, Reason: err.Error()})
+				errorCount++
+				continue
+			}
 			employeeToCreate.PhoneNumber = &phoneNumberStr
 		} else {
-			employeeToCreate.PhoneNumber = nil // 明确设为nil，如果为空字符串
+			employeeToCreate.PhoneNumber = nil
 		}
 
 		if emailStr != "" {
-			// 可在此处添加 email 格式的基础校验，或依赖 service/model 层的校验
+			if !utils.ValidateEmailFormat(emailStr) { // 使用 utils.ValidateEmailFormat
+				importErrors = append(importErrors, BatchImportErrorDetail{RowNumber: rowNum, RowData: record, Reason: utils.ErrInvalidEmailFormat.Error()})
+				errorCount++
+				continue
+			}
 			employeeToCreate.Email = &emailStr
 		} else {
 			employeeToCreate.Email = nil
@@ -380,15 +399,9 @@ func (h *EmployeeHandler) BatchImportEmployees(c *gin.Context) {
 			employeeToCreate.Department = nil
 		}
 
-		_, err = h.service.CreateEmployee(employeeToCreate) // service 层会自动生成 EmployeeID
+		_, err = h.service.CreateEmployee(employeeToCreate)
 		if err != nil {
-			reason := err.Error() // 默认使用服务层/仓库层返回的错误信息
-
-			// 对于特定的、用户友好的校验错误，可以直接使用它们
-			// services.ErrInvalidPhoneNumberFormat, services.ErrInvalidPhoneNumberPrefix,
-			// services.ErrPhoneNumberExists, services.ErrEmailExists, repositories.ErrEmployeeIDExists
-			// 这些错误的 Error() 方法返回的字符串已经是比较清晰的中文了。
-
+			reason := err.Error()
 			importErrors = append(importErrors, BatchImportErrorDetail{RowNumber: rowNum, RowData: record, Reason: reason})
 			errorCount++
 		} else {

@@ -2,13 +2,14 @@ package services
 
 import (
 	"errors"
-	"strings"
 	"time"
-	"unicode"
+
+	// "unicode" // 移除 unicode, isNumeric 已移到 utils
 
 	// "github.com/phone_management/internal/handlers" // 移除此导入
 	"github.com/phone_management/internal/models"
 	"github.com/phone_management/internal/repositories"
+	"github.com/phone_management/pkg/utils" // 导入 utils 包
 )
 
 // ErrEmployeeNotFound 表示员工未找到的错误 (虽然创建时不用，但通常服务层会有)
@@ -20,23 +21,13 @@ var ErrPhoneNumberExists = errors.New("手机号码已存在")
 // ErrEmailExists 表示邮箱已存在 (服务层错误)
 var ErrEmailExists = errors.New("邮箱已存在")
 
-// ErrInvalidPhoneNumberFormat 表示手机号码格式不正确 (例如非纯数字、长度不对等)
-var ErrInvalidPhoneNumberFormat = errors.New("无效的手机号码格式")
-
-// ErrInvalidPhoneNumberPrefix 表示手机号码前缀不正确 (例如不是以'1'开头)
-var ErrInvalidPhoneNumberPrefix = errors.New("无效的手机号码前缀，必须以1开头")
+// 移除服务层特定的手机号格式错误，将使用 utils 中的定义
+// var ErrInvalidPhoneNumberFormat = errors.New("无效的手机号码格式")
+// var ErrInvalidPhoneNumberPrefix = errors.New("无效的手机号码前缀，必须以1开头")
 
 var ErrEmployeeNameNotFound = errors.New("按姓名未找到员工记录") // 新增错误
 
-// isNumeric 辅助函数，检查字符串是否只包含数字
-func isNumeric(s string) bool {
-	for _, r := range s {
-		if !unicode.IsDigit(r) {
-			return false
-		}
-	}
-	return true
-}
+// isNumeric 辅助函数已移至 pkg/utils/validator.go
 
 // EmployeeService 定义了员工服务的接口
 type EmployeeService interface {
@@ -60,34 +51,26 @@ func NewEmployeeService(repo repositories.EmployeeRepository) EmployeeService {
 
 // CreateEmployee 处理创建员工的业务逻辑
 func (s *employeeService) CreateEmployee(employee *models.Employee) (*models.Employee, error) {
-	// 手机号码校验 (如果提供了手机号)
 	if employee.PhoneNumber != nil && *employee.PhoneNumber != "" {
 		phone := *employee.PhoneNumber
-
-		// 1. 长度必须为11位
-		if len(phone) != 11 {
-			return nil, ErrInvalidPhoneNumberFormat // 或者更具体的长度错误，但格式错误已包含此意
-		}
-		// 2. 必须全部是数字
-		if !isNumeric(phone) { // 使用辅助函数
-			return nil, ErrInvalidPhoneNumberFormat
-		}
-		// 3. 必须以数字 '1' 开头
-		if !strings.HasPrefix(phone, "1") {
-			return nil, ErrInvalidPhoneNumberPrefix
+		// 使用 utils 中的校验函数
+		if err := utils.ValidatePhoneNumber(phone); err != nil {
+			return nil, err // 直接返回 utils 包中定义的错误 (ErrInvalidPhoneNumberFormat 或 ErrInvalidPhoneNumberPrefix)
 		}
 
-		// 唯一性校验 (已存在逻辑)
+		// 唯一性校验
 		_, err := s.repo.GetEmployeeByPhoneNumber(phone)
 		if err == nil {
-			return nil, ErrPhoneNumberExists
+			return nil, ErrPhoneNumberExists // 服务层特定的唯一性冲突错误
 		} else if !errors.Is(err, repositories.ErrRecordNotFound) {
 			return nil, err
 		}
 	}
 
-	// 邮箱唯一性校验 (已存在逻辑)
+	// 邮箱唯一性校验 (格式校验由 handler 层或 model binding 处理，服务层主要关注唯一性)
 	if employee.Email != nil && *employee.Email != "" {
+		// 格式校验如果需要在此处加强，也可以调用 utils.ValidateEmailFormat(*employee.Email)
+		// 但当前批量导入已在handler层校验，单个创建依赖Gin的binding。为保持一致，此处主要负责唯一性。
 		_, err := s.repo.GetEmployeeByEmail(*employee.Email)
 		if err == nil {
 			return nil, ErrEmailExists

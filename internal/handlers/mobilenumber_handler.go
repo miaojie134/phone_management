@@ -63,28 +63,29 @@ func (h *MobileNumberHandler) CreateMobileNumber(c *gin.Context) {
 		return
 	}
 
-	applicationDate, err := time.Parse("2006-01-02", payload.ApplicationDate)
+	applicationDate, err := utils.ParseDate(payload.ApplicationDate)
 	if err != nil {
-		utils.RespondValidationError(c, "申请日期格式无效: "+err.Error())
+		utils.RespondValidationError(c, "申请日期(applicationDate)格式无效: "+payload.ApplicationDate+", "+err.Error())
 		return
 	}
 
 	mobileNumberToCreate := &models.MobileNumber{
 		PhoneNumber:         payload.PhoneNumber,
-		ApplicantEmployeeID: payload.ApplicantEmployeeID, // 直接使用业务工号
+		ApplicantEmployeeID: payload.ApplicantEmployeeID,
 		ApplicationDate:     applicationDate,
 		Status:              payload.Status,
 		Vendor:              payload.Vendor,
 		Remarks:             payload.Remarks,
 	}
 
-	// 服务层 CreateMobileNumber 方法签名已更新，不再需要第二个 applicantBusinessID 参数
 	createdMobileNumber, err := h.service.CreateMobileNumber(mobileNumberToCreate)
 	if err != nil {
 		if errors.Is(err, repositories.ErrMobileNumberStringConflict) {
 			utils.RespondConflictError(c, repositories.ErrMobileNumberStringConflict.Error())
 		} else if errors.Is(err, services.ErrEmployeeNotFound) {
 			utils.RespondAPIError(c, http.StatusNotFound, "办卡人员工工号未找到", "employeeId: "+payload.ApplicantEmployeeID)
+		} else if errors.Is(err, utils.ErrInvalidPhoneNumberFormat) || errors.Is(err, utils.ErrInvalidPhoneNumberPrefix) {
+			utils.RespondAPIError(c, http.StatusBadRequest, err.Error(), nil)
 		} else {
 			utils.RespondInternalServerError(c, "创建手机号码失败", err.Error())
 		}
@@ -305,9 +306,9 @@ func (h *MobileNumberHandler) AssignMobileNumber(c *gin.Context) {
 		return
 	}
 
-	assignmentDate, err := time.Parse("2006-01-02", payload.AssignmentDate)
+	assignmentDate, err := utils.ParseDate(payload.AssignmentDate)
 	if err != nil {
-		utils.RespondAPIError(c, http.StatusBadRequest, "分配日期格式无效，请使用 YYYY-MM-DD", err.Error())
+		utils.RespondAPIError(c, http.StatusBadRequest, "分配日期(assignmentDate)格式无效: "+err.Error(), nil)
 		return
 	}
 
@@ -365,7 +366,7 @@ func (h *MobileNumberHandler) UnassignMobileNumber(c *gin.Context) {
 
 	reclaimDate := time.Now()
 	if payload.ReclaimDate != "" {
-		parsedDate, err := time.Parse("2006-01-02", payload.ReclaimDate)
+		parsedDate, err := utils.ParseDate(payload.ReclaimDate)
 		if err != nil {
 			utils.RespondAPIError(c, http.StatusBadRequest, "回收日期格式无效，请使用 YYYY-MM-DD", err.Error())
 			return
@@ -462,7 +463,7 @@ func (h *MobileNumberHandler) BatchImportMobileNumbers(c *gin.Context) {
 		return
 	}
 
-	rowNum := 1 // 表头是第1行
+	rowNum := 1
 	for {
 		rowNum++
 		record, err := reader.Read()
@@ -481,63 +482,61 @@ func (h *MobileNumberHandler) BatchImportMobileNumbers(c *gin.Context) {
 			continue
 		}
 
-		phoneNumber := strings.TrimSpace(record[0])
+		phoneNumberStr := strings.TrimSpace(record[0])
 		applicantName := strings.TrimSpace(record[1])
 		applicationDateStr := strings.TrimSpace(record[2])
 		vendorStr := strings.TrimSpace(record[3])
 
-		if phoneNumber == "" {
+		if phoneNumberStr == "" {
 			importErrors = append(importErrors, BatchImportMobileNumberErrorDetail{RowNumber: rowNum, RowData: record, Reason: "phoneNumber 不能为空"})
 			errorCount++
 			continue
+		} else if err := utils.ValidatePhoneNumber(phoneNumberStr); err != nil {
+			importErrors = append(importErrors, BatchImportMobileNumberErrorDetail{RowNumber: rowNum, RowData: record, Reason: err.Error()})
+			errorCount++
+			continue
 		}
+
 		if applicantName == "" {
 			importErrors = append(importErrors, BatchImportMobileNumberErrorDetail{RowNumber: rowNum, RowData: record, Reason: "applicantName 不能为空"})
 			errorCount++
 			continue
 		}
+
+		var applicationDate time.Time
 		if applicationDateStr == "" {
 			importErrors = append(importErrors, BatchImportMobileNumberErrorDetail{RowNumber: rowNum, RowData: record, Reason: "applicationDate 不能为空"})
 			errorCount++
 			continue
-		}
-
-		// 日期格式兼容：支持 YYYY-MM-DD、YYYY/M/D、YYYY/MM/DD、YYYY-M-D 等
-		applicationDateStr = strings.ReplaceAll(applicationDateStr, "/", "-")
-		var applicationDate time.Time
-		dateLayouts := []string{"2006-01-02", "2006-1-2", "2006-01-2", "2006-1-02"}
-		var parseErr error
-		for _, layout := range dateLayouts {
-			applicationDate, parseErr = time.Parse(layout, applicationDateStr)
-			if parseErr == nil {
-				break
+		} else {
+			parsedDate, errDate := utils.ParseDate(applicationDateStr)
+			if errDate != nil {
+				importErrors = append(importErrors, BatchImportMobileNumberErrorDetail{RowNumber: rowNum, RowData: record, Reason: errDate.Error()})
+				errorCount++
+				continue
 			}
-		}
-		if parseErr != nil {
-			importErrors = append(importErrors, BatchImportMobileNumberErrorDetail{RowNumber: rowNum, RowData: record, Reason: "applicationDate 格式无效，请使用 YYYY-MM-DD"})
-			errorCount++
-			continue
+			applicationDate = parsedDate
 		}
 
-		applicantEmployeeID, err := h.service.ResolveApplicantNameToID(applicantName)
-		if err != nil {
-			importErrors = append(importErrors, BatchImportMobileNumberErrorDetail{RowNumber: rowNum, RowData: record, Reason: err.Error()})
+		applicantEmployeeID, resolveErr := h.service.ResolveApplicantNameToID(applicantName)
+		if resolveErr != nil {
+			importErrors = append(importErrors, BatchImportMobileNumberErrorDetail{RowNumber: rowNum, RowData: record, Reason: resolveErr.Error()})
 			errorCount++
 			continue
 		}
 
 		mobileToCreate := &models.MobileNumber{
-			PhoneNumber:         phoneNumber,
+			PhoneNumber:         phoneNumberStr,
 			ApplicantEmployeeID: applicantEmployeeID,
 			ApplicationDate:     applicationDate,
-			Status:              string(models.StatusIdle), // Default status
+			Status:              string(models.StatusIdle),
 			Vendor:              vendorStr,
-			Remarks:             "", // Default empty remarks
+			Remarks:             "",
 		}
 
-		_, err = h.service.CreateMobileNumber(mobileToCreate)
-		if err != nil {
-			importErrors = append(importErrors, BatchImportMobileNumberErrorDetail{RowNumber: rowNum, RowData: record, Reason: err.Error()})
+		_, createErr := h.service.CreateMobileNumber(mobileToCreate)
+		if createErr != nil {
+			importErrors = append(importErrors, BatchImportMobileNumberErrorDetail{RowNumber: rowNum, RowData: record, Reason: createErr.Error()})
 			errorCount++
 		} else {
 			successCount++
