@@ -29,8 +29,27 @@
   ```
 
 - `SERVER_PORT`: 应用程序监听的端口号。如果未设置，将默认为 `8080`。
+
   ```bash
   export SERVER_PORT="8888"
+  ```
+
+- `SMTP_HOST`: SMTP 服务器的主机名或 IP 地址。
+- `SMTP_PORT`: SMTP 服务器的端口号 (例如 587 或 465)。
+- `SMTP_USERNAME`: (可选) 用于 SMTP 服务器认证的用户名。
+- `SMTP_PASSWORD`: (可选) 用于 SMTP 服务器认证的密码。
+- `SMTP_SENDER_EMAIL`: 发送邮件时使用的发件人邮箱地址。
+
+  ```bash
+  export SMTP_HOST="smtp.qiye.aliyun.com"
+  export SMTP_PORT="465"
+  export SMTP_USERNAME="miaojie@knowbox.cn"
+  export SMTP_PASSWORD="r0REuQBWGm3qEHU7"
+  export SMTP_SENDER_EMAIL="miaojie@knowbox.cn"
+
+  export TEST_RECIPIENT_EMAIL="guanxiao@knowbox.cn"
+  export TEST_EMPLOYEE_NAME="管潇"
+  export TEST_VERIFICATION_LINK= ""
   ```
 
 您可以在启动应用程序的 shell 会话中直接设置这些变量，或者将它们添加到您的 shell 配置文件（如 `.bashrc`, `.zshrc`）中，或者使用 `.env` 文件配合像 `godotenv` 这样的库（如果项目后续引入）。
