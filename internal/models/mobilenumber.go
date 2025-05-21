@@ -30,7 +30,7 @@ type MobileNumber struct {
 	CancellationDate    *time.Time     `json:"cancellationDate" binding:"omitempty,time_format=2006-01-02"`
 	CreatedAt           time.Time      `json:"createdAt" gorm:"autoCreateTime"`
 	UpdatedAt           time.Time      `json:"updatedAt" gorm:"autoUpdateTime"`
-	DeletedAt           gorm.DeletedAt `json:"deletedAt,omitempty" gorm:"index"`
+	DeletedAt           gorm.DeletedAt `json:"deletedAt,omitempty" gorm:"index" swaggertype:"string" format:"date-time"`
 }
 
 // TableName 指定 MobileNumber 结构体对应的数据库表名

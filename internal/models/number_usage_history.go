@@ -15,7 +15,7 @@ type NumberUsageHistory struct {
 	EndDate          *time.Time     `json:"endDate,omitempty" gorm:"column:end_date"`                    // 使用结束日期时间
 	CreatedAt        time.Time      `json:"createdAt" gorm:"column:created_at;not null;autoCreateTime"`
 	UpdatedAt        time.Time      `json:"updatedAt" gorm:"column:updated_at;not null;autoUpdateTime"`
-	DeletedAt        gorm.DeletedAt `json:"deletedAt,omitempty" gorm:"index"`
+	DeletedAt        gorm.DeletedAt `json:"deletedAt,omitempty" gorm:"index" swaggertype:"string" format:"date-time"`
 }
 
 // TableName 指定 NumberUsageHistory 结构体对应的数据库表名

@@ -14,7 +14,7 @@ type User struct {
 	Role         string         `json:"role" gorm:"column:role;not null;default:'admin';size:50"`
 	CreatedAt    time.Time      `json:"createdAt" gorm:"column:created_at;not null;autoCreateTime"`
 	UpdatedAt    time.Time      `json:"updatedAt" gorm:"column:updated_at;not null;autoUpdateTime"`
-	DeletedAt    gorm.DeletedAt `json:"deletedAt,omitempty" gorm:"index"`
+	DeletedAt    gorm.DeletedAt `json:"deletedAt,omitempty" gorm:"index" swaggertype:"string" format:"date-time"`
 }
 
 // TableName 指定 User 结构体对应的数据库表名

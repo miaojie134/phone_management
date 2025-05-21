@@ -1,0 +1,1052 @@
+definitions:
+  handlers.BatchImportErrorDetail:
+    properties:
+      reason:
+        description: 错误原因
+        type: string
+      rowData:
+        description: 可选，原始行数据
+        items:
+          type: string
+        type: array
+      rowNumber:
+        description: CSV中的原始行号 (从1开始计数，包括表头)
+        type: integer
+    type: object
+  handlers.BatchImportMobileNumberErrorDetail:
+    properties:
+      reason:
+        description: 错误原因
+        type: string
+      rowData:
+        description: 可选，原始行数据
+        items:
+          type: string
+        type: array
+      rowNumber:
+        description: CSV中的原始行号 (从1开始计数，包括表头)
+        type: integer
+    type: object
+  handlers.BatchImportMobileNumbersResponse:
+    properties:
+      errorCount:
+        type: integer
+      errors:
+        items:
+          $ref: '#/definitions/handlers.BatchImportMobileNumberErrorDetail'
+        type: array
+      message:
+        type: string
+      successCount:
+        type: integer
+    type: object
+  handlers.BatchImportResponse:
+    properties:
+      errorCount:
+        type: integer
+      errors:
+        items:
+          $ref: '#/definitions/handlers.BatchImportErrorDetail'
+        type: array
+      message:
+        type: string
+      successCount:
+        type: integer
+    type: object
+  handlers.CreateEmployeePayload:
+    properties:
+      department:
+        maxLength: 255
+        type: string
+      email:
+        description: 可选，需要是合法的email格式，最大长度255
+        maxLength: 255
+        type: string
+      fullName:
+        maxLength: 255
+        type: string
+      phoneNumber:
+        description: 手机号：可选，但如果提供，必须是11位数字
+        type: string
+    required:
+    - fullName
+    type: object
+  handlers.CreateMobileNumberPayload:
+    properties:
+      applicantEmployeeId:
+        description: 改为 string，代表业务工号
+        type: string
+      applicationDate:
+        type: string
+      phoneNumber:
+        maxLength: 50
+        type: string
+      remarks:
+        maxLength: 255
+        type: string
+      status:
+        enum:
+        - 闲置
+        - 在用
+        - 待注销
+        - 已注销
+        - 待核实-办卡人离职
+        type: string
+      vendor:
+        maxLength: 100
+        type: string
+    required:
+    - applicantEmployeeId
+    - applicationDate
+    - phoneNumber
+    - status
+    type: object
+  handlers.LoginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  handlers.LoginResponse:
+    properties:
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/handlers.UserInfo'
+    type: object
+  handlers.PagedEmployeesData:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/models.Employee'
+        type: array
+      pagination:
+        $ref: '#/definitions/handlers.PaginationInfo'
+    type: object
+  handlers.PagedMobileNumbersData:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/models.MobileNumberResponse'
+        type: array
+      pagination:
+        $ref: '#/definitions/handlers.PaginationInfo'
+    type: object
+  handlers.PaginationInfo:
+    properties:
+      currentPage:
+        type: integer
+      pageSize:
+        type: integer
+      totalItems:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
+  handlers.UserInfo:
+    properties:
+      role:
+        type: string
+      username:
+        type: string
+    type: object
+  models.Employee:
+    properties:
+      createdAt:
+        type: string
+      deletedAt:
+        format: date-time
+        type: string
+      department:
+        description: 部门
+        type: string
+      email:
+        description: 员工邮箱, 可选, 唯一 (NULLS NOT DISTINCT)
+        type: string
+      employeeId:
+        description: 员工业务工号, 例如 EMP0000001
+        type: string
+      employmentStatus:
+        description: '在职状态 (例如: ''Active'', ''Departed'')'
+        type: string
+      fullName:
+        description: 姓名
+        type: string
+      hireDate:
+        description: 入职日期
+        type: string
+      id:
+        type: integer
+      phoneNumber:
+        description: 员工手机号码, 11位, 可选, 唯一 (NULLS NOT DISTINCT)
+        type: string
+      terminationDate:
+        description: 离职日期
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  models.EmployeeDetailResponse:
+    properties:
+      createdAt:
+        type: string
+      department:
+        type: string
+      employeeId:
+        type: string
+      employmentStatus:
+        type: string
+      fullName:
+        type: string
+      handledMobileNumbers:
+        description: 作为办卡人的号码列表
+        items:
+          $ref: '#/definitions/models.MobileNumberBasicInfo'
+        type: array
+      hireDate:
+        type: string
+      id:
+        type: integer
+      terminationDate:
+        type: string
+      updatedAt:
+        type: string
+      usingMobileNumbers:
+        description: 作为当前使用人的号码列表
+        items:
+          $ref: '#/definitions/models.MobileNumberBasicInfo'
+        type: array
+    type: object
+  models.MobileNumber:
+    properties:
+      applicantEmployeeId:
+        description: 办卡人员工业务工号
+        type: string
+      applicationDate:
+        type: string
+      cancellationDate:
+        type: string
+      createdAt:
+        type: string
+      currentEmployeeId:
+        description: 当前使用人员工业务工号
+        type: string
+      deletedAt:
+        format: date-time
+        type: string
+      id:
+        type: integer
+      phoneNumber:
+        type: string
+      remarks:
+        maxLength: 255
+        type: string
+      status:
+        enum:
+        - 闲置
+        - 在用
+        - 待注销
+        - 已注销
+        - 待核实-办卡人离职
+        type: string
+      updatedAt:
+        type: string
+      vendor:
+        maxLength: 100
+        type: string
+    required:
+    - applicantEmployeeId
+    - applicationDate
+    - phoneNumber
+    - status
+    type: object
+  models.MobileNumberAssignPayload:
+    properties:
+      assignmentDate:
+        type: string
+      employeeId:
+        description: 员工业务工号
+        type: string
+    required:
+    - assignmentDate
+    - employeeId
+    type: object
+  models.MobileNumberBasicInfo:
+    properties:
+      id:
+        type: integer
+      phoneNumber:
+        type: string
+      status:
+        type: string
+    type: object
+  models.MobileNumberResponse:
+    properties:
+      applicantEmployeeId:
+        description: 办卡人员工业务工号
+        type: string
+      applicantName:
+        description: 办卡人姓名
+        type: string
+      applicantStatus:
+        description: 办卡人当前在职状态
+        type: string
+      applicationDate:
+        type: string
+      cancellationDate:
+        type: string
+      createdAt:
+        type: string
+      currentEmployeeId:
+        description: 当前使用人员工业务工号
+        type: string
+      currentUserName:
+        description: 当前使用人姓名
+        type: string
+      id:
+        type: integer
+      phoneNumber:
+        type: string
+      remarks:
+        type: string
+      status:
+        type: string
+      updatedAt:
+        type: string
+      usageHistory:
+        description: 号码使用历史
+        items:
+          $ref: '#/definitions/models.NumberUsageHistory'
+        type: array
+      vendor:
+        type: string
+    type: object
+  models.MobileNumberUnassignPayload:
+    properties:
+      reclaimDate:
+        type: string
+    type: object
+  models.MobileNumberUpdatePayload:
+    properties:
+      remarks:
+        maxLength: 255
+        type: string
+      status:
+        enum:
+        - 闲置
+        - 在用
+        - 待注销
+        - 已注销
+        - 待核实-办卡人离职
+        type: string
+      vendor:
+        maxLength: 100
+        type: string
+    type: object
+  models.NumberUsageHistory:
+    properties:
+      createdAt:
+        type: string
+      deletedAt:
+        format: date-time
+        type: string
+      employeeId:
+        description: 使用人员工业务工号
+        type: string
+      endDate:
+        description: 使用结束日期时间
+        type: string
+      id:
+        type: integer
+      mobileNumberDbId:
+        description: 手机号码记录的数据库 ID
+        type: integer
+      startDate:
+        description: 使用开始日期时间
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  models.UpdateEmployeePayload:
+    properties:
+      department:
+        maxLength: 255
+        type: string
+      employmentStatus:
+        description: 校验允许的值
+        enum:
+        - Active
+        - Inactive
+        - Departed
+        type: string
+      terminationDate:
+        description: 日期格式 YYYY-MM-DD
+        type: string
+    type: object
+  utils.APIErrorResponse:
+    properties:
+      details: {}
+      error:
+        type: string
+    type: object
+  utils.SuccessResponse:
+    properties:
+      data:
+        description: 响应数据
+      message:
+        description: 可选的成功消息
+        type: string
+      status:
+        description: 例如 "success"
+        type: string
+    type: object
+info:
+  contact: {}
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: 验证管理员凭证并返回 JWT
+      parameters:
+      - description: 登录凭证
+        in: body
+        name: credentials
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 登录成功，返回 Token 和用户信息
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.LoginResponse'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "401":
+          description: 无效的用户名或密码
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "500":
+          description: 无法生成Token
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+      summary: 管理员登录
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Logs out the current user by invalidating their token.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功登出
+          schema:
+            $ref: '#/definitions/utils.SuccessResponse'
+        "400":
+          description: 错误的请求 (例如，上下文中缺少JTI或EXP)
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: User logout
+      tags:
+      - auth
+  /employees:
+    get:
+      consumes:
+      - application/json
+      description: 根据查询参数获取员工列表，支持分页、搜索和筛选
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: limit
+        type: integer
+      - description: '排序字段 (例如: employeeId, fullName, createdAt)'
+        in: query
+        name: sortBy
+        type: string
+      - default: '"desc"'
+        description: 排序顺序 ('asc'或'desc')
+        in: query
+        name: sortOrder
+        type: string
+      - description: 搜索关键词 (匹配姓名、工号)
+        in: query
+        name: search
+        type: string
+      - description: 在职状态筛选 ('Active'或'Departed')
+        in: query
+        name: employmentStatus
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功响应，包含员工列表和分页信息
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.PagedEmployeesData'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "401":
+          description: 未认证或 Token 无效/过期
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 获取员工列表
+      tags:
+      - Employees
+    post:
+      consumes:
+      - application/json
+      description: 从请求体绑定数据并验证，数据保存到数据库。员工工号需唯一。
+      parameters:
+      - description: 员工信息
+        in: body
+        name: employee
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateEmployeePayload'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功的员工对象
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Employee'
+              type: object
+        "400":
+          description: 请求参数错误或数据校验失败
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "401":
+          description: 未认证或 Token 无效/过期
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "409":
+          description: 员工工号已存在
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 新增一个员工
+      tags:
+      - Employees
+  /employees/{employeeId}:
+    get:
+      consumes:
+      - application/json
+      description: 根据路径参数员工业务工号获取单个员工的完整信息，包含其作为"办卡人"和"当前使用人"的号码简要列表。
+      parameters:
+      - description: 员工业务工号
+        in: path
+        name: employeeId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功响应，包含员工详情
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.EmployeeDetailResponse'
+              type: object
+        "400":
+          description: 无效的员工工号格式 (保留，以防未来有格式校验)
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "401":
+          description: 未认证或 Token 无效/过期
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "404":
+          description: 员工未找到
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 获取指定业务工号的员工详情
+      tags:
+      - Employees
+  /employees/{employeeId}/update:
+    post:
+      consumes:
+      - application/json
+      description: 根据员工业务工号更新员工的部门、在职状态或离职日期。
+      parameters:
+      - description: 员工业务工号
+        in: path
+        name: employeeId
+        required: true
+        type: string
+      - description: 要更新的员工字段
+        in: body
+        name: employeeUpdate
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateEmployeePayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新后的员工对象
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Employee'
+              type: object
+        "400":
+          description: 请求参数错误或数据校验失败
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "401":
+          description: 未认证或 Token 无效/过期
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "404":
+          description: 员工未找到
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 更新指定业务工号的员工信息
+      tags:
+      - Employees
+  /employees/import:
+    post:
+      consumes:
+      - multipart/form-data
+      description: 通过上传 CSV 文件批量导入员工。CSV文件应包含表头：fullName,phoneNumber,email,department。顺序必须一致，表头自身也会被计入行号。
+      parameters:
+      - description: '包含员工数据的 CSV 文件 (表头: fullName,phoneNumber,email,department)'
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 导入结果摘要
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.BatchImportResponse'
+              type: object
+        "400":
+          description: 请求错误，例如文件未提供、文件格式错误或CSV表头不匹配
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "401":
+          description: 未认证或 Token 无效/过期
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 批量导入员工数据 (CSV)
+      tags:
+      - Employees
+  /mobilenumbers:
+    get:
+      consumes:
+      - application/json
+      description: 根据查询参数获取手机号码列表，支持分页、搜索和筛选
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: limit
+        type: integer
+      - description: '排序字段 (例如: phoneNumber, applicationDate)'
+        in: query
+        name: sortBy
+        type: string
+      - description: 排序顺序 ('asc'或'desc')
+        in: query
+        name: sortOrder
+        type: string
+      - description: 搜索关键词 (匹配手机号、使用人、办卡人)
+        in: query
+        name: search
+        type: string
+      - description: '号码状态筛选 (例如: 闲置, 在用)'
+        in: query
+        name: status
+        type: string
+      - description: 办卡人当前在职状态筛选 ('Active'或'Departed')
+        in: query
+        name: applicantStatus
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功响应，包含号码列表和分页信息
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.PagedMobileNumbersData'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 获取手机号码列表
+      tags:
+      - MobileNumbers
+    post:
+      consumes:
+      - application/json
+      description: 从请求体绑定数据并验证，数据保存到 SQLite 的 MobileNumbers 表中，进行手机号码唯一性校验。
+      parameters:
+      - description: 手机号码信息 (日期格式 YYYY-MM-DD)
+        in: body
+        name: mobileNumber
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateMobileNumberPayload'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: 创建成功的号码对象
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.MobileNumber'
+              type: object
+        "400":
+          description: 请求参数错误或数据校验失败
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "401":
+          description: 未认证或 Token 无效/过期
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "409":
+          description: 手机号码已存在
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 新增一个手机号码
+      tags:
+      - MobileNumbers
+  /mobilenumbers/{phoneNumber}:
+    get:
+      consumes:
+      - application/json
+      description: 根据路径参数手机号码字符串获取单个手机号码的完整信息，包括其使用历史。
+      parameters:
+      - description: 手机号码字符串
+        in: path
+        name: phoneNumber
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功响应，包含号码详情及其使用历史
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.MobileNumberResponse'
+              type: object
+        "400":
+          description: 无效的手机号码格式 (保留，以防未来有格式校验)
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "404":
+          description: 号码未找到
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 获取指定手机号码的详情
+      tags:
+      - MobileNumbers
+  /mobilenumbers/{phoneNumber}/assign:
+    post:
+      consumes:
+      - application/json
+      description: 校验目标号码是否为"闲置"状态，目标员工是否为"在职"状态。更新号码记录，关联当前使用人员工ID，将号码状态改为"在用"。创建一条新的号码使用历史记录。
+      parameters:
+      - description: 手机号码字符串
+        in: path
+        name: phoneNumber
+        required: true
+        type: string
+      - description: 分配信息 (员工业务工号和分配日期 YYYY-MM-DD)
+        in: body
+        name: assignPayload
+        required: true
+        schema:
+          $ref: '#/definitions/models.MobileNumberAssignPayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功分配后的号码对象
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.MobileNumber'
+              type: object
+        "400":
+          description: 请求参数错误 / 无效的日期格式 / 无效的手机号码格式" // 更新了描述
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "401":
+          description: 未认证或 Token 无效/过期
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "404":
+          description: 手机号码或目标员工工号未找到
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "409":
+          description: 操作冲突 (例如：号码非闲置，员工非在职)
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 将指定手机号码分配给一个员工
+      tags:
+      - MobileNumbers
+  /mobilenumbers/{phoneNumber}/unassign:
+    post:
+      consumes:
+      - application/json
+      description: 校验目标号码是否为"在用"状态。更新号码记录，清空当前使用人员工ID，将号码状态改为"闲置"。更新上一条与该号码和使用人相关的号码使用历史记录，记录使用结束时间。
+      parameters:
+      - description: 手机号码字符串
+        in: path
+        name: phoneNumber
+        required: true
+        type: string
+      - description: 回收信息 (可选，包含回收日期 YYYY-MM-DD)
+        in: body
+        name: unassignPayload
+        schema:
+          $ref: '#/definitions/models.MobileNumberUnassignPayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功回收后的号码对象
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.MobileNumber'
+              type: object
+        "400":
+          description: 请求参数错误 / 无效的日期格式 / 无效的手机号码格式" // 添加了无效手机号格式的说明
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "401":
+          description: 未认证或 Token 无效/过期
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "404":
+          description: 手机号码未找到
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "409":
+          description: 操作冲突 (例如：号码非在用状态，或未找到有效的分配记录)
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 从当前使用人处回收指定手机号码
+      tags:
+      - MobileNumbers
+  /mobilenumbers/{phoneNumber}/update:
+    post:
+      consumes:
+      - application/json
+      description: 更新指定手机号码的信息 (主要用于更新状态、供应商、备注)。当号码状态变更为"已注销"时，自动记录注销时间。
+      parameters:
+      - description: 手机号码字符串
+        in: path
+        name: phoneNumber
+        required: true
+        type: string
+      - description: 要更新的手机号码字段
+        in: body
+        name: mobileNumberUpdate
+        required: true
+        schema:
+          $ref: '#/definitions/models.MobileNumberUpdatePayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 更新后的号码对象
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.MobileNumber'
+              type: object
+        "400":
+          description: 请求参数错误或数据校验失败 / 没有提供任何更新字段 / 无效的手机号码格式" // 更新了描述
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "401":
+          description: 未认证或 Token 无效/过期
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "404":
+          description: 号码未找到
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 更新指定手机号码的信息
+      tags:
+      - MobileNumbers
+  /mobilenumbers/import:
+    post:
+      consumes:
+      - multipart/form-data
+      description: 通过上传 CSV 文件批量导入手机号码。CSV文件应包含表头：phoneNumber,applicantName,applicationDate,vendor
+      parameters:
+      - description: '包含手机号码数据的 CSV 文件 (表头: phoneNumber,applicantName,applicationDate,vendor)'
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 导入结果摘要
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.BatchImportMobileNumbersResponse'
+              type: object
+        "400":
+          description: 请求错误，例如文件未提供、文件格式错误或CSV表头不匹配
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "401":
+          description: 未认证或 Token 无效/过期
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 批量导入手机号码数据 (CSV)
+      tags:
+      - MobileNumbers
+swagger: "2.0"

@@ -22,7 +22,7 @@ type Employee struct {
 	TerminationDate  *time.Time     `json:"terminationDate,omitempty" gorm:"column:termination_date;type:date"`                                // 离职日期
 	CreatedAt        time.Time      `json:"createdAt" gorm:"column:created_at;not null;autoCreateTime"`
 	UpdatedAt        time.Time      `json:"updatedAt" gorm:"column:updated_at;not null;autoUpdateTime"`
-	DeletedAt        gorm.DeletedAt `json:"deletedAt,omitempty" gorm:"index"`
+	DeletedAt        gorm.DeletedAt `json:"deletedAt,omitempty" gorm:"index" swaggertype:"string" format:"date-time"`
 }
 
 // TableName 指定 Employee 结构体对应的数据库表名

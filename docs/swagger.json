@@ -1,0 +1,1647 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "contact": {}
+    },
+    "paths": {
+        "/auth/login": {
+            "post": {
+                "description": "验证管理员凭证并返回 JWT",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "管理员登录",
+                "parameters": [
+                    {
+                        "description": "登录凭证",
+                        "name": "credentials",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.LoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "登录成功，返回 Token 和用户信息",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handlers.LoginResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "无效的用户名或密码",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "无法生成Token",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/logout": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Logs out the current user by invalidating their token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "User logout",
+                "responses": {
+                    "200": {
+                        "description": "成功登出",
+                        "schema": {
+                            "$ref": "#/definitions/utils.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "错误的请求 (例如，上下文中缺少JTI或EXP)",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/employees": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "根据查询参数获取员工列表，支持分页、搜索和筛选",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Employees"
+                ],
+                "summary": "获取员工列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页数量",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "排序字段 (例如: employeeId, fullName, createdAt)",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "\"desc\"",
+                        "description": "排序顺序 ('asc'或'desc')",
+                        "name": "sortOrder",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "搜索关键词 (匹配姓名、工号)",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "在职状态筛选 ('Active'或'Departed')",
+                        "name": "employmentStatus",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应，包含员工列表和分页信息",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handlers.PagedEmployeesData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未认证或 Token 无效/过期",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "从请求体绑定数据并验证，数据保存到数据库。员工工号需唯一。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Employees"
+                ],
+                "summary": "新增一个员工",
+                "parameters": [
+                    {
+                        "description": "员工信息",
+                        "name": "employee",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.CreateEmployeePayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "创建成功的员工对象",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.Employee"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误或数据校验失败",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未认证或 Token 无效/过期",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "员工工号已存在",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/employees/import": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "通过上传 CSV 文件批量导入员工。CSV文件应包含表头：fullName,phoneNumber,email,department。顺序必须一致，表头自身也会被计入行号。",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Employees"
+                ],
+                "summary": "批量导入员工数据 (CSV)",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "包含员工数据的 CSV 文件 (表头: fullName,phoneNumber,email,department)",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "导入结果摘要",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handlers.BatchImportResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求错误，例如文件未提供、文件格式错误或CSV表头不匹配",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未认证或 Token 无效/过期",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/employees/{employeeId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "根据路径参数员工业务工号获取单个员工的完整信息，包含其作为\"办卡人\"和\"当前使用人\"的号码简要列表。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Employees"
+                ],
+                "summary": "获取指定业务工号的员工详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "员工业务工号",
+                        "name": "employeeId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应，包含员工详情",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.EmployeeDetailResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "无效的员工工号格式 (保留，以防未来有格式校验)",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未认证或 Token 无效/过期",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "员工未找到",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/employees/{employeeId}/update": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "根据员工业务工号更新员工的部门、在职状态或离职日期。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Employees"
+                ],
+                "summary": "更新指定业务工号的员工信息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "员工业务工号",
+                        "name": "employeeId",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "要更新的员工字段",
+                        "name": "employeeUpdate",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.UpdateEmployeePayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新后的员工对象",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.Employee"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误或数据校验失败",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未认证或 Token 无效/过期",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "员工未找到",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/mobilenumbers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "根据查询参数获取手机号码列表，支持分页、搜索和筛选",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MobileNumbers"
+                ],
+                "summary": "获取手机号码列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页数量",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "排序字段 (例如: phoneNumber, applicationDate)",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "排序顺序 ('asc'或'desc')",
+                        "name": "sortOrder",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "搜索关键词 (匹配手机号、使用人、办卡人)",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "号码状态筛选 (例如: 闲置, 在用)",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "办卡人当前在职状态筛选 ('Active'或'Departed')",
+                        "name": "applicantStatus",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应，包含号码列表和分页信息",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handlers.PagedMobileNumbersData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "从请求体绑定数据并验证，数据保存到 SQLite 的 MobileNumbers 表中，进行手机号码唯一性校验。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MobileNumbers"
+                ],
+                "summary": "新增一个手机号码",
+                "parameters": [
+                    {
+                        "description": "手机号码信息 (日期格式 YYYY-MM-DD)",
+                        "name": "mobileNumber",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.CreateMobileNumberPayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "创建成功的号码对象",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.MobileNumber"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误或数据校验失败",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未认证或 Token 无效/过期",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "手机号码已存在",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/mobilenumbers/import": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "通过上传 CSV 文件批量导入手机号码。CSV文件应包含表头：phoneNumber,applicantName,applicationDate,vendor",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MobileNumbers"
+                ],
+                "summary": "批量导入手机号码数据 (CSV)",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "包含手机号码数据的 CSV 文件 (表头: phoneNumber,applicantName,applicationDate,vendor)",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "导入结果摘要",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handlers.BatchImportMobileNumbersResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求错误，例如文件未提供、文件格式错误或CSV表头不匹配",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未认证或 Token 无效/过期",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/mobilenumbers/{phoneNumber}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "根据路径参数手机号码字符串获取单个手机号码的完整信息，包括其使用历史。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MobileNumbers"
+                ],
+                "summary": "获取指定手机号码的详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "手机号码字符串",
+                        "name": "phoneNumber",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应，包含号码详情及其使用历史",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.MobileNumberResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "无效的手机号码格式 (保留，以防未来有格式校验)",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "号码未找到",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/mobilenumbers/{phoneNumber}/assign": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "校验目标号码是否为\"闲置\"状态，目标员工是否为\"在职\"状态。更新号码记录，关联当前使用人员工ID，将号码状态改为\"在用\"。创建一条新的号码使用历史记录。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MobileNumbers"
+                ],
+                "summary": "将指定手机号码分配给一个员工",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "手机号码字符串",
+                        "name": "phoneNumber",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "分配信息 (员工业务工号和分配日期 YYYY-MM-DD)",
+                        "name": "assignPayload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.MobileNumberAssignPayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功分配后的号码对象",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.MobileNumber"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误 / 无效的日期格式 / 无效的手机号码格式\" // 更新了描述",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未认证或 Token 无效/过期",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "手机号码或目标员工工号未找到",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "操作冲突 (例如：号码非闲置，员工非在职)",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/mobilenumbers/{phoneNumber}/unassign": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "校验目标号码是否为\"在用\"状态。更新号码记录，清空当前使用人员工ID，将号码状态改为\"闲置\"。更新上一条与该号码和使用人相关的号码使用历史记录，记录使用结束时间。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MobileNumbers"
+                ],
+                "summary": "从当前使用人处回收指定手机号码",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "手机号码字符串",
+                        "name": "phoneNumber",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "回收信息 (可选，包含回收日期 YYYY-MM-DD)",
+                        "name": "unassignPayload",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/models.MobileNumberUnassignPayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功回收后的号码对象",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.MobileNumber"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误 / 无效的日期格式 / 无效的手机号码格式\" // 添加了无效手机号格式的说明",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未认证或 Token 无效/过期",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "手机号码未找到",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "操作冲突 (例如：号码非在用状态，或未找到有效的分配记录)",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/mobilenumbers/{phoneNumber}/update": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "更新指定手机号码的信息 (主要用于更新状态、供应商、备注)。当号码状态变更为\"已注销\"时，自动记录注销时间。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MobileNumbers"
+                ],
+                "summary": "更新指定手机号码的信息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "手机号码字符串",
+                        "name": "phoneNumber",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "要更新的手机号码字段",
+                        "name": "mobileNumberUpdate",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.MobileNumberUpdatePayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "更新后的号码对象",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.MobileNumber"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误或数据校验失败 / 没有提供任何更新字段 / 无效的手机号码格式\" // 更新了描述",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未认证或 Token 无效/过期",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "号码未找到",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "handlers.BatchImportErrorDetail": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "description": "错误原因",
+                    "type": "string"
+                },
+                "rowData": {
+                    "description": "可选，原始行数据",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "rowNumber": {
+                    "description": "CSV中的原始行号 (从1开始计数，包括表头)",
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.BatchImportMobileNumberErrorDetail": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "description": "错误原因",
+                    "type": "string"
+                },
+                "rowData": {
+                    "description": "可选，原始行数据",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "rowNumber": {
+                    "description": "CSV中的原始行号 (从1开始计数，包括表头)",
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.BatchImportMobileNumbersResponse": {
+            "type": "object",
+            "properties": {
+                "errorCount": {
+                    "type": "integer"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.BatchImportMobileNumberErrorDetail"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "successCount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.BatchImportResponse": {
+            "type": "object",
+            "properties": {
+                "errorCount": {
+                    "type": "integer"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.BatchImportErrorDetail"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "successCount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.CreateEmployeePayload": {
+            "type": "object",
+            "required": [
+                "fullName"
+            ],
+            "properties": {
+                "department": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "email": {
+                    "description": "可选，需要是合法的email格式，最大长度255",
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "fullName": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "phoneNumber": {
+                    "description": "手机号：可选，但如果提供，必须是11位数字",
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.CreateMobileNumberPayload": {
+            "type": "object",
+            "required": [
+                "applicantEmployeeId",
+                "applicationDate",
+                "phoneNumber",
+                "status"
+            ],
+            "properties": {
+                "applicantEmployeeId": {
+                    "description": "改为 string，代表业务工号",
+                    "type": "string"
+                },
+                "applicationDate": {
+                    "type": "string"
+                },
+                "phoneNumber": {
+                    "type": "string",
+                    "maxLength": 50
+                },
+                "remarks": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "闲置",
+                        "在用",
+                        "待注销",
+                        "已注销",
+                        "待核实-办卡人离职"
+                    ]
+                },
+                "vendor": {
+                    "type": "string",
+                    "maxLength": 100
+                }
+            }
+        },
+        "handlers.LoginRequest": {
+            "type": "object",
+            "required": [
+                "password",
+                "username"
+            ],
+            "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.LoginResponse": {
+            "type": "object",
+            "properties": {
+                "token": {
+                    "type": "string"
+                },
+                "user": {
+                    "$ref": "#/definitions/handlers.UserInfo"
+                }
+            }
+        },
+        "handlers.PagedEmployeesData": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Employee"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/handlers.PaginationInfo"
+                }
+            }
+        },
+        "handlers.PagedMobileNumbersData": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.MobileNumberResponse"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/handlers.PaginationInfo"
+                }
+            }
+        },
+        "handlers.PaginationInfo": {
+            "type": "object",
+            "properties": {
+                "currentPage": {
+                    "type": "integer"
+                },
+                "pageSize": {
+                    "type": "integer"
+                },
+                "totalItems": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.UserInfo": {
+            "type": "object",
+            "properties": {
+                "role": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.Employee": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "deletedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "department": {
+                    "description": "部门",
+                    "type": "string"
+                },
+                "email": {
+                    "description": "员工邮箱, 可选, 唯一 (NULLS NOT DISTINCT)",
+                    "type": "string"
+                },
+                "employeeId": {
+                    "description": "员工业务工号, 例如 EMP0000001",
+                    "type": "string"
+                },
+                "employmentStatus": {
+                    "description": "在职状态 (例如: 'Active', 'Departed')",
+                    "type": "string"
+                },
+                "fullName": {
+                    "description": "姓名",
+                    "type": "string"
+                },
+                "hireDate": {
+                    "description": "入职日期",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "phoneNumber": {
+                    "description": "员工手机号码, 11位, 可选, 唯一 (NULLS NOT DISTINCT)",
+                    "type": "string"
+                },
+                "terminationDate": {
+                    "description": "离职日期",
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.EmployeeDetailResponse": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "department": {
+                    "type": "string"
+                },
+                "employeeId": {
+                    "type": "string"
+                },
+                "employmentStatus": {
+                    "type": "string"
+                },
+                "fullName": {
+                    "type": "string"
+                },
+                "handledMobileNumbers": {
+                    "description": "作为办卡人的号码列表",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.MobileNumberBasicInfo"
+                    }
+                },
+                "hireDate": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "terminationDate": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "usingMobileNumbers": {
+                    "description": "作为当前使用人的号码列表",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.MobileNumberBasicInfo"
+                    }
+                }
+            }
+        },
+        "models.MobileNumber": {
+            "type": "object",
+            "required": [
+                "applicantEmployeeId",
+                "applicationDate",
+                "phoneNumber",
+                "status"
+            ],
+            "properties": {
+                "applicantEmployeeId": {
+                    "description": "办卡人员工业务工号",
+                    "type": "string"
+                },
+                "applicationDate": {
+                    "type": "string"
+                },
+                "cancellationDate": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "currentEmployeeId": {
+                    "description": "当前使用人员工业务工号",
+                    "type": "string"
+                },
+                "deletedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "phoneNumber": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "闲置",
+                        "在用",
+                        "待注销",
+                        "已注销",
+                        "待核实-办卡人离职"
+                    ]
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "vendor": {
+                    "type": "string",
+                    "maxLength": 100
+                }
+            }
+        },
+        "models.MobileNumberAssignPayload": {
+            "type": "object",
+            "required": [
+                "assignmentDate",
+                "employeeId"
+            ],
+            "properties": {
+                "assignmentDate": {
+                    "type": "string"
+                },
+                "employeeId": {
+                    "description": "员工业务工号",
+                    "type": "string"
+                }
+            }
+        },
+        "models.MobileNumberBasicInfo": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "phoneNumber": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.MobileNumberResponse": {
+            "type": "object",
+            "properties": {
+                "applicantEmployeeId": {
+                    "description": "办卡人员工业务工号",
+                    "type": "string"
+                },
+                "applicantName": {
+                    "description": "办卡人姓名",
+                    "type": "string"
+                },
+                "applicantStatus": {
+                    "description": "办卡人当前在职状态",
+                    "type": "string"
+                },
+                "applicationDate": {
+                    "type": "string"
+                },
+                "cancellationDate": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "currentEmployeeId": {
+                    "description": "当前使用人员工业务工号",
+                    "type": "string"
+                },
+                "currentUserName": {
+                    "description": "当前使用人姓名",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "phoneNumber": {
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "usageHistory": {
+                    "description": "号码使用历史",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.NumberUsageHistory"
+                    }
+                },
+                "vendor": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.MobileNumberUnassignPayload": {
+            "type": "object",
+            "properties": {
+                "reclaimDate": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.MobileNumberUpdatePayload": {
+            "type": "object",
+            "properties": {
+                "remarks": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "闲置",
+                        "在用",
+                        "待注销",
+                        "已注销",
+                        "待核实-办卡人离职"
+                    ]
+                },
+                "vendor": {
+                    "type": "string",
+                    "maxLength": 100
+                }
+            }
+        },
+        "models.NumberUsageHistory": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "deletedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "employeeId": {
+                    "description": "使用人员工业务工号",
+                    "type": "string"
+                },
+                "endDate": {
+                    "description": "使用结束日期时间",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "mobileNumberDbId": {
+                    "description": "手机号码记录的数据库 ID",
+                    "type": "integer"
+                },
+                "startDate": {
+                    "description": "使用开始日期时间",
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.UpdateEmployeePayload": {
+            "type": "object",
+            "properties": {
+                "department": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "employmentStatus": {
+                    "description": "校验允许的值",
+                    "type": "string",
+                    "enum": [
+                        "Active",
+                        "Inactive",
+                        "Departed"
+                    ]
+                },
+                "terminationDate": {
+                    "description": "日期格式 YYYY-MM-DD",
+                    "type": "string"
+                }
+            }
+        },
+        "utils.APIErrorResponse": {
+            "type": "object",
+            "properties": {
+                "details": {},
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "utils.SuccessResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "响应数据"
+                },
+                "message": {
+                    "description": "可选的成功消息",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "例如 \"success\"",
+                    "type": "string"
+                }
+            }
+        }
+    }
+}
