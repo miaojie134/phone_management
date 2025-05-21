@@ -60,8 +60,28 @@
 
 (用户提示：为号码数据导入 POST /api/v1/import/mobilenumbers 生成类似指令)
 
-阶段 7: 安全性和错误处理 (文档 3.1 节和 6 节)
+7.1 (新) 邮件服务模块实现指令:
 
-7.1 Gin 错误处理机制实现指令:
+在 pkg/email/email.go 中实现一个邮件发送服务模块。该模块应包含发送邮件的功能，支持配置 SMTP 服务器信息（通过环境变量）。至少包含一个函数，例如 SendVerificationEmail(toEmail string, employeeName string, verificationLink string) error。
 
-为 Gin 应用设置错误处理机制或中间件，捕获处理函数返回的错误，并根据 backend_api_docs_mvp_v1 文档 3.1 节定义的错误响应格式（如 400, 401, 404, 500 错误）返回 JSON 响应。请展示如何在处理函数中返回自定义错误以便此中间件捕获。
+7.2 (新) 发起确认流程 API 实现指令 (POST /verification/initiate):
+
+根据 backend_api_docs_mvp_v1 (v1.2) 文档第 3.6 节 POST /api/v1/verification/initiate 的描述，在 internal/handlers/verification_handler.go 和 internal/services/verification_service.go 中实现此功能。管理员调用此接口后，系统为目标员工生成唯一的 VerificationTokens 记录，并调用邮件服务异步发送包含专属确认链接的邮件。
+
+7.3 (新) 获取待确认号码信息 API 实现指令 (GET /verification/info):
+
+根据 backend_api_docs_mvp_v1 (v1.2) 文档第 3.6 节 GET /api/v1/verification/info?token= 的描述，实现此公开 API。后端需验证 token 有效性（存在、未过期、状态为'pending'），然后查询并返回关联员工及其名下需确认的手机号码信息。
+
+7.4 (新) 提交确认结果 API 实现指令 (POST /verification/submit):
+
+根据 backend_api_docs_mvp_v1 (v1.2) 文档第 3.6 节 POST /api/v1/verification/submit?token= 的描述，实现此公开 API。后端需验证 token 有效性，然后处理用户提交的 verifiedNumbers (更新号码状态或标记问题) 和 unlistedNumbersReported (记录供管理员审核)，最后将 VerificationTokens 状态更新为 'used'。
+
+7.5 (新) 管理员查看确认状态 API 实现指令 (GET /verification/admin/status):
+
+根据 backend_api_docs_mvp_v1 (v1.2) 文档第 3.6 节 GET /api/v1/verification/admin/status 的描述，实现此管理员认证 API。允许管理员查看号码确认流程的整体状态、未响应用户列表、用户报告的问题列表等。
+
+阶段 8: 安全性和错误处理 (文档 3.1 节和 6 节)
+
+8.1 Gin 错误处理机制实现指令:
+
+为 Gin 应用设置错误处理机制或中间件，捕获处理函数返回的错误，并根据 backend_api_docs_mvp_v1 (v1.2) 文档 3.1 节定义的错误响应格式（如 400, 401, 404, 500 错误）返回 JSON 响应。请展示如何在处理函数中返回自定义错误以便此中间件捕获。

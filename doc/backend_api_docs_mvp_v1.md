@@ -105,6 +105,19 @@ MVP 阶段仅支持单一管理员角色，无需复杂权限管理。
 *对每条数据进行格式校验和逻辑校验（如手机号格式、办卡人姓名/工号能否在员工库中匹配到对应的员工记录）。
 *将校验通过的数据批量存入号码数据库表，并建立与办卡人的关联。 \*返回导入操作的结果统计及详细的错误信息列表。
 
+2.7 号码使用确认流程 (新)
+功能描述:
+发起确认流程: 允许管理员为全部或特定员工群体发起手机号码使用情况的确认流程。
+生成并分发令牌: 为每个需要确认的员工（或其名下的每个号码，根据设计选择）生成唯一的、有时效性的、安全的验证令牌。
+发送通知邮件: 系统通过邮件将包含专属验证链接（内含令牌）的通知发送给相关员工。
+验证令牌并展示信息: 用户点击链接后，系统验证令牌的有效性（是否存在、未过期、未使用），然后查询并展示该员工名下登记的所有手机号码。
+处理用户反馈:
+用户可以为名下每个号码选择“确认使用”或“报告问题”。
+系统记录用户的反馈。对于“确认使用”的号码，可更新其最后确认日期；对于“报告问题”的号码，系统应标记并通知管理员进行跟进。
+用户可以提交他们正在使用但未在系统名下登记的号码信息。
+令牌状态管理: 令牌在使用后或过期后应标记为无效，防止重复使用。
+管理员跟进: 系统提供界面或报告，供管理员查看确认进度、用户报告的问题以及用户新增的未登记号码，以便进行后续处理。
+
 3. API 接口设计
 
 3.1 通用约定
@@ -293,6 +306,92 @@ POST /mobilenumbers
 
 响应 (200 OK): 结构类似员工导入的响应，包含成功/失败统计及错误详情。
 
+3.6 号码确认 API (/api/v1/verification) (新)
+
+POST /initiate (需要管理员认证)
+描述: 管理员发起号码使用确认流程。
+请求体 (可选):
+{
+"scope": "all_users", // or "department_id": "dept_xyz", or "employee_ids": ["emp001", "emp002"]
+"durationDays": 7 // 令牌有效期天数
+}
+
+响应 (200 OK):
+{
+"message": "号码确认流程已成功发起。",
+"initiatedForUsers": 150, // 涉及的用户数
+"tokensGenerated": 150 // 生成的令牌数
+}
+
+业务逻辑:
+根据请求体中的 scope 确定目标员工。
+为每个目标员工生成唯一的 VerificationTokens 记录（包含令牌和过期时间）。
+异步发送包含专属确认链接（/verify-numbers?token=UNIQUE_TOKEN 前端页面路由）的邮件给每个员工。
+
+GET /info (无需 JWT 认证, 令牌本身即是认证)
+描述: 用户点击邮件链接后，前端页面调用此接口获取该用户需确认的号码信息。
+查询参数: token (string, required) - 从邮件链接中获取的专属令牌。
+响应 (200 OK):
+{
+"employeeName": "张三",
+"tokenValidUntil": "YYYY-MM-DDTHH:mm:ssZ",
+"numbersToVerify": [
+{ "mobileNumberId": "db_id_1", "phoneNumber": "13800138000", "currentStatusInSystem": "在用", "remarksByAdmin": "销售部使用" },
+{ "mobileNumberId": "db_id_2", "phoneNumber": "13900139000", "currentStatusInSystem": "在用", "remarksByAdmin": "" }
+]
+}
+
+响应 (403 Forbidden / 404 Not Found): { "error": "无效或已过期的链接。" }
+
+业务逻辑:
+验证 token 的有效性（存在、未过期、状态为'pending'）。
+若有效，查询关联员工及其名下所有状态为“在用”或“闲置”的手机号码。
+若无效，返回错误。
+
+POST /submit (无需 JWT 认证, 令牌本身即是认证)
+描述: 用户提交其号码确认结果。
+查询参数: token (string, required)
+
+请求体:
+{
+"verifiedNumbers": [
+{ "mobileNumberId": "db_id_1", "action": "confirm_usage", "userComment": "" }, // action: confirm_usage, report_issue
+{ "mobileNumberId": "db_id_2", "action": "report_issue", "userComment": "这个号码我已经不用了，给李四了" }
+],
+"unlistedNumbersReported": [ // 用户新增上报的号码
+{ "phoneNumber": "13700137000", "userComment": "这个号码公司给的，我一直在用，但列表里没有" }
+]
+}
+
+响应 (200 OK): { "message": "您的反馈已成功提交，感谢您的配合！" }
+
+响应 (403 Forbidden / 404 Not Found): { "error": "无效或已过期的链接，或已提交过。" }
+
+业务逻辑:
+验证 token 的有效性（存在、未过期、状态为'pending'）。
+处理 verifiedNumbers:
+confirm_usage: 可更新对应 MobileNumbers 记录的“最后确认日期”或类似字段。
+report_issue: 将对应 MobileNumbers 记录标记为“待核实-用户报告”，并存储 userComment，通知管理员。
+处理 unlistedNumbersReported: 将这些信息记录下来（例如存入一个新表或发送通知给管理员），供管理员审核并添加到系统中。
+将 VerificationTokens 记录的状态更新为 'used'。
+
+GET /admin/status (需要管理员认证)
+描述: 管理员查看号码确认流程的整体状态和结果。
+查询参数 (可选): cycleId (如果每次发起流程有 ID), status (pending, used, expired), employeeId, departmentId
+
+响应 (200 OK): 返回统计信息和需要关注的列表 (例如，未响应用户列表、用户报告问题列表)。
+{
+"summary": {
+"totalInitiated": 150,
+"responded": 120,
+"pendingResponse": 30,
+"issuesReportedCount": 15
+},
+"pendingUsers": [ { "employeeId": "emp003", "fullName": "王五", "email": "..." } ],
+"reportedIssues": [ { "phoneNumber": "139...", "reportedBy": "张三", "comment": "...", "originalStatus": "..." } ],
+"unlistedNumbers": [ { "phoneNumber": "137...", "reportedBy": "李四", "comment": "..." } ]
+}
+
 4. 数据模型详述
 
 Users (管理员用户表)
@@ -334,6 +433,28 @@ mobileNumberDbId (FK, INT, NOT NULL) - 手机号码记录的数据库 ID (关联
 employeeDbId (FK, INT, NOT NULL) - 使用人员工记录的数据库 ID (关联 Employees.id)
 startDate (TIMESTAMP, NOT NULL) - 使用开始日期时间
 endDate (TIMESTAMP, NULL) - 使用结束日期时间
+createdAt (TIMESTAMP, NOT NULL, DEFAULT CURRENT_TIMESTAMP)
+updatedAt (TIMESTAMP, NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)
+
+VerificationTokens (号码确认令牌表) (新)
+id (PK, SERIAL 或 INT AUTO_INCREMENT, NOT NULL) - 主键 ID
+employeeDbId (FK, INT, NOT NULL) - 关联的员工数据库 ID (参照 Employees.id)
+token (VARCHAR(255), UNIQUE, NOT NULL, INDEX) - 唯一验证令牌 (例如 UUID)
+status (VARCHAR(50), NOT NULL, DEFAULT 'pending') - 令牌状态 (例如: 'pending', 'used', 'expired')
+expiresAt (TIMESTAMP, NOT NULL) - 令牌过期时间
+createdAt (TIMESTAMP, NOT NULL, DEFAULT CURRENT_TIMESTAMP)
+updatedAt (TIMESTAMP, NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)
+
+UserReportedIssues (用户报告问题/未列出号码表) (新 - 可选, 或并入备注/日志)
+id (PK, SERIAL)
+verificationTokenId (FK, INT, NULL, references VerificationTokens.id) - 关联的验证令牌 ID (如果是通过验证流程报告的)
+reportedByEmployeeDbId (FK, INT, NOT NULL, references Employees.id) - 报告问题的员工 ID
+mobileNumberDbId (FK, INT, NULL, references MobileNumbers.id) - 如果是针对现有号码报告问题
+reportedPhoneNumber (VARCHAR(50), NULL) - 如果是报告未列出的号码
+issueType (VARCHAR(50), NOT NULL) - 问题类型 (例如 'not_my_number', 'number_changed_user', 'unlisted_number_in_use')
+userComment (TEXT, NULL) - 用户备注
+adminActionStatus (VARCHAR(50), NOT NULL, DEFAULT 'pending_review') - 管理员处理状态 (例如 'pending_review', 'resolved', 'archived')
+adminRemarks (TEXT, NULL) - 管理员处理备注
 createdAt (TIMESTAMP, NOT NULL, DEFAULT CURRENT_TIMESTAMP)
 updatedAt (TIMESTAMP, NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)
 
