@@ -78,6 +78,8 @@ func InitDB() {
 		&models.Employee{},
 		&models.MobileNumber{},
 		&models.NumberUsageHistory{},
+		&models.VerificationToken{},
+		&models.UserReportedIssue{},
 	)
 	if err != nil {
 		log.Fatalf("Failed to auto migrate database tables: %v", err)
