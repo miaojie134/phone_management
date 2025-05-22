@@ -44,7 +44,7 @@
   export SMTP_HOST="smtp.qiye.aliyun.com"
   export SMTP_PORT="465"
   export SMTP_USERNAME="miaojie@knowbox.cn"
-  export SMTP_PASSWORD="r0REuQBWGm3qEHU7"
+  export SMTP_PASSWORD="J4bi9dFaKd3ziFUAA"
   export SMTP_SENDER_EMAIL="miaojie@knowbox.cn"
 
   export TEST_RECIPIENT_EMAIL="guanxiao@knowbox.cn"
