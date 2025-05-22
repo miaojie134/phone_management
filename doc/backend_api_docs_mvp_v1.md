@@ -174,6 +174,7 @@ POST /
 "phoneNumber": "13800138000",
 "applicantEmployeeId": "employee_db_id_or_business_key", // 办卡人员工 ID
 "applicationDate": "2024-01-15",
+"purpose": "办公用", // 号码用途，可选
 "vendor": "中国移动",
 "status": "闲置", // 初始状态
 "remarks": "新购入卡"
@@ -217,6 +218,7 @@ POST /:id/update (原 PUT /:id)
 请求体: (包含要更新的字段)
 {
 "status": "待注销",
+"purpose": "客户联系", // 号码用途，可选
 "remarks": "用户申请停用",
 "vendor": "中国联通"
 }
@@ -371,23 +373,28 @@ GET /api/v1/verification/batch/{batchId}/status
 - `500 Internal Server Error`: 服务器内部错误。
 
 GET /info (无需 JWT 认证, 令牌本身即是认证)
-描述: 用户点击邮件链接后，前端页面调用此接口获取该用户需确认的号码信息。
+描述: 用户点击邮件链接后，前端页面调用此接口获取该用户需确认的号码信息以及此前通过该令牌报告的未列出号码。
 查询参数: token (string, required) - 从邮件链接中获取的专属令牌。
 
 响应 (200 OK):
 {
+"employeeId": "EMP001", // 员工业务 ID
 "employeeName": "张三",
-"tokenValidUntil": "YYYY-MM-DDTHH:mm:ssZ",
-"numbersToVerify": [
-{ "mobileNumberId": "db_id_1", "phoneNumber": "13800138000", "currentStatusInSystem": "在用"},
-{ "mobileNumberId": "db_id_2", "phoneNumber": "13900139000", "currentStatusInSystem": "在用"}
-]
+"phoneNumbers": [
+{ "id": 123, "phoneNumber": "13800138000", "department": "技术部", "purpose": "办公用", "status": "confirmed" }, // status 可以是 pending, confirmed, reported
+{ "id": 124, "phoneNumber": "13900139000", "department": "技术部", "purpose": "客户联系", "status": "pending" }
+],
+"previouslyReportedUnlisted": [
+{ "phoneNumber": "18611120634", "userComment": "交付给我", "reportedAt": "2023-10-27T10:00:00Z" }
+],
+"expiresAt": "2023-11-03T10:00:00Z"
 }
 
 响应 (403 Forbidden / 404 Not Found): { "error": "无效或已过期的链接。" }
 业务逻辑:
 验证 token 的有效性（存在、未过期、状态为'pending'）。
-若有效，查询关联员工及其名下所有状态为"在用"或"闲置"的手机号码。
+若有效，查询关联员工及其名下所有状态为"在用"或"闲置"的手机号码，并获取这些号码的当前确认状态。
+同时，查询该 token 下用户已报告的未列出号码 (issue_type 为 'unlisted_number')。
 若无效，返回错误。
 
 POST /submit (无需 JWT 认证, 令牌本身即是认证)
@@ -397,8 +404,8 @@ POST /submit (无需 JWT 认证, 令牌本身即是认证)
 请求体:
 {
 "verifiedNumbers": [
-{ "mobileNumberId": "db_id_1", "action": "confirm_usage", "userComment": "" }, // action: confirm_usage, report_issue
-{ "mobileNumberId": "db_id_2", "action": "report_issue", "userComment": "这个号码我已经不用了，给李四了" }
+{ "mobileNumberId": "db_id_1", "action": "confirm_usage", "purpose": "办公用" }, // purpose 可选，用于更新/确认号码用途
+{ "mobileNumberId": "db_id_2", "action": "report_issue", "purpose": "个人使用", "userComment": "这个号码我已经不用了，给李四了" }
 ],
 "unlistedNumbersReported": [ // 用户新增上报的号码
 { "phoneNumber": "13700137000", "userComment": "这个号码公司给的，我一直在用，但列表里没有" }
@@ -463,6 +470,7 @@ applicantEmployeeDbId (FK, INT, NOT NULL) - 办卡人员工记录的数据库 ID
 applicationDate (DATE, NOT NULL) - 办卡日期
 currentEmployeeDbId (FK, INT, NULL) - 当前使用人员工记录的数据库 ID (关联 Employees.id)
 status (VARCHAR(50), NOT NULL, DEFAULT '闲置') - 号码状态 (例如: '闲置', '在用', '待注销', '已注销', '待核实-办卡人离职')
+purpose (VARCHAR(255), NULL) - 号码用途 (例如: '办公', '客户联系', '个人使用')
 vendor (VARCHAR(100), NULL) - 供应商
 remarks (TEXT, NULL) - 备注
 cancellationDate (DATE, NULL) - 注销日期

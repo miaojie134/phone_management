@@ -154,7 +154,7 @@ func (h *VerificationHandler) GetVerificationBatchStatus(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param token query string true "验证令牌 - 从邮件链接中获取的token参数"
-// @Param body body models.VerificationSubmission true "请求体"
+// @Param body body models.VerificationSubmission true "请求体，包含 verifiedNumbers（必填，号码ID、动作类型、用途purpose、可选的备注）和 unlistedNumbersReported（可选，用户报告的未列出号码，需包含phoneNumber和必填的purpose）"
 // @Success 200 {object} utils.SuccessResponse "提交成功"
 // @Failure 400 {object} utils.APIErrorResponse "请求参数无效"
 // @Failure 403 {object} utils.APIErrorResponse "令牌无效或已过期"
@@ -196,11 +196,35 @@ func (h *VerificationHandler) SubmitVerificationResult(c *gin.Context) {
 			// 如果需要，可以将TrimmedComment赋值回vn.UserComment，但这取决于后续服务层是否期望处理首尾空格
 			// vn.UserComment = trimmedComment
 		}
+
+		// 验证 Purpose 字段（如果提供）-> 修改为必填
+		if vn.Purpose == nil || strings.TrimSpace(*vn.Purpose) == "" {
+			errorMessage := fmt.Sprintf("号码ID %d 的用途 (purpose) 不能为空。", vn.MobileNumberId)
+			utils.RespondAPIError(c, http.StatusBadRequest, "请求参数无效", errorMessage)
+			return
+		}
+		if len(*vn.Purpose) > 255 { // 限制用途字段长度
+			errorMessage := fmt.Sprintf("号码ID %d 的用途描述过长，请保持在255字符以内。", vn.MobileNumberId)
+			utils.RespondAPIError(c, http.StatusBadRequest, "请求参数无效", errorMessage)
+			return
+		}
 	}
 
 	// 校验 UserComment for UnlistedNumbersReported (如果需要，可以添加类似校验)
 	// 例如：如果 unlistedNumbersReported 中的 userComment 也需要校验
 	for _, un := range req.UnlistedNumbersReported {
+		// 验证 Purpose 字段 (必填)
+		if un.Purpose == nil || strings.TrimSpace(*un.Purpose) == "" {
+			errorMessage := fmt.Sprintf("报告的未列出号码 %s 的用途 (purpose) 不能为空。", un.PhoneNumber)
+			utils.RespondAPIError(c, http.StatusBadRequest, "请求参数无效", errorMessage)
+			return
+		}
+		if len(*un.Purpose) > 255 { // 限制用途字段长度
+			errorMessage := fmt.Sprintf("报告的未列出号码 %s 的用途描述过长，请保持在255字符以内。", un.PhoneNumber)
+			utils.RespondAPIError(c, http.StatusBadRequest, "请求参数无效", errorMessage)
+			return
+		}
+
 		trimmedComment := strings.TrimSpace(un.UserComment)
 		if len(trimmedComment) > 500 { // 假设最大长度为500
 			errorMessage := fmt.Sprintf("报告的未列出号码 %s 的用户备注过长，请保持在500字符以内。", un.PhoneNumber)

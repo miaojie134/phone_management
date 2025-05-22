@@ -26,6 +26,7 @@ type MobileNumber struct {
 	ApplicationDate      time.Time      `json:"applicationDate" gorm:"not null" binding:"required,time_format=2006-01-02"`
 	CurrentEmployeeID    *string        `json:"currentEmployeeId,omitempty" gorm:"column:current_employee_id"` // 当前使用人员工业务工号
 	Status               string         `json:"status" gorm:"not null" binding:"required,oneof=闲置 在用 待注销 已注销 待核实-办卡人离职 待核实-用户报告"`
+	Purpose              *string        `json:"purpose,omitempty" gorm:"type:varchar(255);null"` // 号码用途，例如"办公"、"客户联系"等
 	Vendor               string         `json:"vendor" binding:"max=100"`
 	Remarks              string         `json:"remarks" binding:"max=255"`
 	CancellationDate     *time.Time     `json:"cancellationDate" binding:"omitempty,time_format=2006-01-02"`
@@ -51,6 +52,7 @@ type MobileNumberResponse struct {
 	CurrentEmployeeID   *string              `json:"currentEmployeeId,omitempty"` // 当前使用人员工业务工号
 	CurrentUserName     string               `json:"currentUserName,omitempty"`   // 当前使用人姓名
 	Status              string               `json:"status"`
+	Purpose             *string              `json:"purpose,omitempty"` // 号码用途
 	Vendor              string               `json:"vendor,omitempty"`
 	Remarks             string               `json:"remarks,omitempty"`
 	CancellationDate    *time.Time           `json:"cancellationDate,omitempty"`
@@ -62,6 +64,7 @@ type MobileNumberResponse struct {
 // MobileNumberUpdatePayload 定义了更新手机号码信息的请求体结构
 type MobileNumberUpdatePayload struct {
 	Status  *string `json:"status,omitempty" binding:"omitempty,oneof=闲置 在用 待注销 已注销 待核实-办卡人离职 待核实-用户报告"`
+	Purpose *string `json:"purpose,omitempty" binding:"omitempty,max=255"`
 	Vendor  *string `json:"vendor,omitempty" binding:"omitempty,max=100"`
 	Remarks *string `json:"remarks,omitempty" binding:"omitempty,max=255"`
 }

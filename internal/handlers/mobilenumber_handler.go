@@ -30,12 +30,13 @@ func NewMobileNumberHandler(service services.MobileNumberService) *MobileNumberH
 
 // CreateMobileNumberPayload 是用于绑定和验证创建手机号码请求的临时结构体
 type CreateMobileNumberPayload struct {
-	PhoneNumber         string `json:"phoneNumber" binding:"required,max=50"`
-	ApplicantEmployeeID string `json:"applicantEmployeeId" binding:"required"` // 改为 string，代表业务工号
-	ApplicationDate     string `json:"applicationDate" binding:"required,datetime=2006-01-02"`
-	Status              string `json:"status" binding:"required,oneof=闲置 在用 待注销 已注销 待核实-办卡人离职"`
-	Vendor              string `json:"vendor" binding:"max=100"`
-	Remarks             string `json:"remarks" binding:"max=255"`
+	PhoneNumber         string  `json:"phoneNumber" binding:"required,max=50"`
+	ApplicantEmployeeID string  `json:"applicantEmployeeId" binding:"required"` // 改为 string，代表业务工号
+	ApplicationDate     string  `json:"applicationDate" binding:"required,datetime=2006-01-02"`
+	Status              string  `json:"status" binding:"required,oneof=闲置 在用 待注销 已注销 待核实-办卡人离职"`
+	Purpose             *string `json:"purpose,omitempty" binding:"omitempty,max=255"` // 号码用途，可选
+	Vendor              string  `json:"vendor" binding:"max=100"`
+	Remarks             string  `json:"remarks" binding:"max=255"`
 	// CurrentEmployeeDbID 和 CancellationDate 是可选的，如果它们在创建请求中也可能出现，也应在此处添加为字符串并处理
 	// CurrentEmployeeDbID   *uint  `json:"currentEmployeeDbId,omitempty"`
 	// CancellationDate      string `json:"cancellationDate,omitempty" binding:"omitempty,datetime=2006-01-02"`
@@ -74,6 +75,7 @@ func (h *MobileNumberHandler) CreateMobileNumber(c *gin.Context) {
 		ApplicantEmployeeID: payload.ApplicantEmployeeID,
 		ApplicationDate:     applicationDate,
 		Status:              payload.Status,
+		Purpose:             payload.Purpose,
 		Vendor:              payload.Vendor,
 		Remarks:             payload.Remarks,
 	}
@@ -220,7 +222,7 @@ func (h *MobileNumberHandler) GetMobileNumberByID(c *gin.Context) {
 
 // UpdateMobileNumber godoc
 // @Summary 更新指定手机号码的信息
-// @Description 更新指定手机号码的信息 (主要用于更新状态、供应商、备注)。当号码状态变更为"已注销"时，自动记录注销时间。
+// @Description 更新指定手机号码的信息 (主要用于更新状态、用途、供应商、备注)。当号码状态变更为"已注销"时，自动记录注销时间。
 // @Tags MobileNumbers
 // @Accept json
 // @Produce json
@@ -249,7 +251,7 @@ func (h *MobileNumberHandler) UpdateMobileNumber(c *gin.Context) {
 	}
 
 	// 校验至少有一个字段被提供用于更新
-	if payload.Status == nil && payload.Vendor == nil && payload.Remarks == nil {
+	if payload.Status == nil && payload.Purpose == nil && payload.Vendor == nil && payload.Remarks == nil {
 		utils.RespondAPIError(c, http.StatusBadRequest, "没有提供任何有效的更新字段", nil)
 		return
 	}

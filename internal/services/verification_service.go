@@ -158,6 +158,7 @@ func (s *verificationService) GetVerificationInfo(ctx context.Context, token str
 			ID:          number.ID,
 			PhoneNumber: number.PhoneNumber,
 			Department:  department,
+			Purpose:     number.Purpose,
 			Status:      status,
 		})
 	}
@@ -414,6 +415,16 @@ func (s *verificationService) SubmitVerificationResult(ctx context.Context, toke
 			if err := s.mobileNumberRepo.UpdateLastConfirmationDate(ctx, verifiedNumber.MobileNumberId); err != nil {
 				return fmt.Errorf("更新号码确认日期失败: %w", err)
 			}
+
+			// 如果用户提供了新的用途信息，更新号码用途
+			if verifiedNumber.Purpose != nil {
+				updates := map[string]interface{}{
+					"purpose": verifiedNumber.Purpose,
+				}
+				if _, err := s.mobileNumberRepo.UpdateMobileNumber(verifiedNumber.MobileNumberId, updates); err != nil {
+					return fmt.Errorf("更新号码用途失败: %w", err)
+				}
+			}
 		case "report_issue":
 			if err := s.mobileNumberRepo.MarkAsReportedByUser(ctx, verifiedNumber.MobileNumberId); err != nil {
 				return fmt.Errorf("标记号码为用户报告问题失败: %w", err)
@@ -429,6 +440,19 @@ func (s *verificationService) SubmitVerificationResult(ctx context.Context, toke
 				AdminActionStatus:    "pending_review",
 			}
 
+			// 如果用户报告了号码用途问题，记录在用户报告中
+			if verifiedNumber.Purpose != nil {
+				// 这里我们需要修改 UserReportedIssue 模型，添加 ReportedPurpose 字段
+				// 暂时可以将用途信息添加到 UserComment 中
+				if verifiedNumber.UserComment == "" {
+					newComment := fmt.Sprintf("用途应为: %s", *verifiedNumber.Purpose)
+					reportedIssue.UserComment = &newComment
+				} else {
+					newComment := fmt.Sprintf("%s\n用途应为: %s", verifiedNumber.UserComment, *verifiedNumber.Purpose)
+					reportedIssue.UserComment = &newComment
+				}
+			}
+
 			if err := s.userReportedIssueRepo.CreateReportedIssue(ctx, reportedIssue); err != nil {
 				return fmt.Errorf("创建用户报告问题记录失败: %w", err)
 			}
@@ -439,12 +463,22 @@ func (s *verificationService) SubmitVerificationResult(ctx context.Context, toke
 
 	// 5. 处理unlisted numbers
 	for _, unlistedNumber := range request.UnlistedNumbersReported {
+		// 将 Purpose 信息附加到 UserComment
+		userCommentWithPurpose := unlistedNumber.UserComment
+		if unlistedNumber.Purpose != nil && *unlistedNumber.Purpose != "" {
+			if userCommentWithPurpose == "" {
+				userCommentWithPurpose = fmt.Sprintf("报告用途: %s", *unlistedNumber.Purpose)
+			} else {
+				userCommentWithPurpose = fmt.Sprintf("%s\n报告用途: %s", userCommentWithPurpose, *unlistedNumber.Purpose)
+			}
+		}
+
 		reportedIssue := &models.UserReportedIssue{
 			VerificationTokenId:  &verificationToken.ID,
 			ReportedByEmployeeID: verificationToken.EmployeeID,
 			ReportedPhoneNumber:  &unlistedNumber.PhoneNumber,
 			IssueType:            "unlisted_number",
-			UserComment:          &unlistedNumber.UserComment,
+			UserComment:          &userCommentWithPurpose, // 使用包含 Purpose 的 comment
 			AdminActionStatus:    "pending_review",
 		}
 

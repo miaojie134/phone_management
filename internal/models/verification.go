@@ -98,15 +98,17 @@ type EmailFailureDetail struct {
 
 // VerifiedNumber 表示用户确认的号码信息
 type VerifiedNumber struct {
-	MobileNumberId uint   `json:"mobileNumberId" binding:"required"`
-	Action         string `json:"action" binding:"required,oneof=confirm_usage report_issue"` // confirm_usage, report_issue
-	UserComment    string `json:"userComment,omitempty"`
+	MobileNumberId uint    `json:"mobileNumberId" binding:"required"`
+	Action         string  `json:"action" binding:"required,oneof=confirm_usage report_issue"` // confirm_usage, report_issue
+	Purpose        *string `json:"purpose,omitempty"`                                          // 用户确认或报告问题时可提供的号码用途
+	UserComment    string  `json:"userComment,omitempty"`
 }
 
 // UnlistedNumber 表示用户报告的未在系统中列出的号码
 type UnlistedNumber struct {
-	PhoneNumber string `json:"phoneNumber" binding:"required,len=11,numeric"`
-	UserComment string `json:"userComment,omitempty"`
+	PhoneNumber string  `json:"phoneNumber" binding:"required,len=11,numeric"`
+	Purpose     *string `json:"purpose" binding:"required,max=255"` // 用户报告该号码的用途
+	UserComment string  `json:"userComment,omitempty"`
 }
 
 // VerificationSubmission 表示用户提交的号码确认结果
@@ -117,10 +119,11 @@ type VerificationSubmission struct {
 
 // VerificationPhoneNumber 表示验证流程中的手机号码信息
 type VerificationPhoneNumber struct {
-	ID          uint   `json:"id"`
-	PhoneNumber string `json:"phoneNumber"`
-	Department  string `json:"department"`
-	Status      string `json:"status"` // pending, confirmed, reported
+	ID          uint    `json:"id"`
+	PhoneNumber string  `json:"phoneNumber"`
+	Department  string  `json:"department"`
+	Purpose     *string `json:"purpose,omitempty"` // 号码用途
+	Status      string  `json:"status"`            // pending, confirmed, reported
 }
 
 // VerificationInfo 表示验证信息的响应结构

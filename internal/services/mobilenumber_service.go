@@ -110,6 +110,9 @@ func (s *mobileNumberService) UpdateMobileNumberByPhoneNumber(phoneNumber string
 			updates["cancellation_date"] = &now
 		}
 	}
+	if payload.Purpose != nil {
+		updates["purpose"] = *payload.Purpose
+	}
 	if payload.Vendor != nil {
 		updates["vendor"] = *payload.Vendor
 	}
