@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/phone_management/internal/models"
@@ -38,7 +39,7 @@ type InitiateVerificationResponse struct {
 // @Tags Verification
 // @Produce json
 // @Param token query string true "验证令牌"
-// @Success 200 {object} utils.SuccessResponse{data=services.VerificationInfoResponse} "成功响应，包含员工姓名、令牌有效期、待验证的号码列表"
+// @Success 200 {object} utils.SuccessResponse{data=models.VerificationInfo} "成功响应，包含员工姓名、令牌有效期、待验证的号码列表及其状态"
 // @Failure 403 {object} utils.APIErrorResponse "令牌无效或已过期"
 // @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
 // @Router /verification/info [get]
@@ -52,7 +53,7 @@ func (h *VerificationHandler) GetVerificationInfo(c *gin.Context) {
 	info, err := h.verificationService.GetVerificationInfo(c.Request.Context(), token)
 	if err != nil {
 		switch err {
-		case services.ErrTokenNotFound, services.ErrTokenExpired, services.ErrTokenUsed:
+		case services.ErrTokenNotFound, services.ErrTokenExpired:
 			utils.RespondAPIError(c, http.StatusForbidden, "无效或已过期的链接。", err.Error())
 		default:
 			utils.RespondInternalServerError(c, "获取验证信息失败", err.Error())
@@ -153,14 +154,7 @@ func (h *VerificationHandler) GetVerificationBatchStatus(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param token query string true "验证令牌 - 从邮件链接中获取的token参数"
-// @Param body body object true "请求体" Schema(object,required=verifiedNumbers)
-// @Param verifiedNumbers body array true "用户需确认的号码列表，必填" items(object,required=mobileNumberId action)
-// @Param mobileNumberId body integer true "号码ID，与GetVerificationInfo接口返回的ID一致" example(123456)
-// @Param action body string true "操作类型，必须是'confirm_usage'(确认使用)或'report_issue'(报告问题)" enums(confirm_usage,report_issue) example(confirm_usage)
-// @Param userComment body string false "用户备注，当action=report_issue时建议填写" example("这个号码我已经不用了")
-// @Param unlistedNumbersReported body array false "用户报告的未在系统中列出但实际在使用的号码" items(object,required=phoneNumber)
-// @Param phoneNumber body string true "手机号码，11位数字" example(13800138000)
-// @Param userComment body string false "用户备注，说明该号码的用途等" example("这个号码是公司发的，我一直在用")
+// @Param body body models.VerificationSubmission true "请求体"
 // @Success 200 {object} utils.SuccessResponse "提交成功"
 // @Failure 400 {object} utils.APIErrorResponse "请求参数无效"
 // @Failure 403 {object} utils.APIErrorResponse "令牌无效或已过期"
@@ -179,18 +173,53 @@ func (h *VerificationHandler) SubmitVerificationResult(c *gin.Context) {
 		return
 	}
 
-	// 请求参数基本验证
-	if len(req.VerifiedNumbers) == 0 {
-		utils.RespondAPIError(c, http.StatusBadRequest, "请求参数无效", "verifiedNumbers不能为空")
+	// 请求参数基本验证：VerifiedNumbers 和 UnlistedNumbersReported 至少要有一个
+	if len(req.VerifiedNumbers) == 0 && len(req.UnlistedNumbersReported) == 0 {
+		utils.RespondAPIError(c, http.StatusBadRequest, "请求参数无效", "verifiedNumbers 和 unlistedNumbersReported 不能同时为空")
 		return
+	}
+
+	// 校验 UserComment for VerifiedNumbers
+	for _, vn := range req.VerifiedNumbers {
+		if vn.Action == "report_issue" {
+			trimmedComment := strings.TrimSpace(vn.UserComment)
+			if trimmedComment == "" {
+				errorMessage := fmt.Sprintf("当操作为 'report_issue' 时，号码ID %d 的用户备注 (userComment) 不能为空。", vn.MobileNumberId)
+				utils.RespondAPIError(c, http.StatusBadRequest, "请求参数无效", errorMessage)
+				return
+			}
+			if len(trimmedComment) > 500 { // 假设最大长度为500
+				errorMessage := fmt.Sprintf("号码ID %d 的用户备注过长，请保持在500字符以内。", vn.MobileNumberId)
+				utils.RespondAPIError(c, http.StatusBadRequest, "请求参数无效", errorMessage)
+				return
+			}
+			// 如果需要，可以将TrimmedComment赋值回vn.UserComment，但这取决于后续服务层是否期望处理首尾空格
+			// vn.UserComment = trimmedComment
+		}
+	}
+
+	// 校验 UserComment for UnlistedNumbersReported (如果需要，可以添加类似校验)
+	// 例如：如果 unlistedNumbersReported 中的 userComment 也需要校验
+	for _, un := range req.UnlistedNumbersReported {
+		trimmedComment := strings.TrimSpace(un.UserComment)
+		if len(trimmedComment) > 500 { // 假设最大长度为500
+			errorMessage := fmt.Sprintf("报告的未列出号码 %s 的用户备注过长，请保持在500字符以内。", un.PhoneNumber)
+			utils.RespondAPIError(c, http.StatusBadRequest, "请求参数无效", errorMessage)
+			return
+		}
+		// 如果 UnlistedNumbersReported 的 UserComment 在某些情况下也是必填的，可以在这里添加校验
+		// if trimmedComment == "" {
+		// 	 utils.RespondAPIError(c, http.StatusBadRequest, "请求参数无效", fmt.Sprintf("报告的未列出号码 %s 的用户备注不能为空。", un.PhoneNumber))
+		// 	 return
+		// }
 	}
 
 	// 处理确认结果，直接传递models中的结构体
 	err := h.verificationService.SubmitVerificationResult(c.Request.Context(), token, &req)
 	if err != nil {
 		switch err {
-		case services.ErrTokenNotFound, services.ErrTokenExpired, services.ErrTokenUsed:
-			utils.RespondAPIError(c, http.StatusForbidden, "无效或已过期的链接，或已提交过。", err.Error())
+		case services.ErrTokenNotFound, services.ErrTokenExpired:
+			utils.RespondAPIError(c, http.StatusForbidden, "无效或已过期的链接。", err.Error())
 		default:
 			utils.RespondInternalServerError(c, "提交确认结果失败", err.Error())
 		}

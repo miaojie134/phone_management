@@ -41,6 +41,8 @@ type MobileNumberRepository interface {
 	UpdateLastConfirmationDate(ctx context.Context, numberID uint) error
 	// MarkAsReportedByUser 将号码标记为用户报告问题
 	MarkAsReportedByUser(ctx context.Context, numberID uint) error
+	FindByVerificationBatchTaskId(ctx context.Context, batchTaskId string) ([]models.MobileNumber, error)
+	FindConfirmedNumberIdsByTokenId(ctx context.Context, tokenId uint) ([]uint, error)
 }
 
 // gormMobileNumberRepository 是 MobileNumberRepository 的 GORM 实现
@@ -454,4 +456,37 @@ func (r *gormMobileNumberRepository) MarkAsReportedByUser(ctx context.Context, n
 		Where("id = ?", numberID).
 		Update("status", "待核实-用户报告").
 		Error
+}
+
+// FindByVerificationBatchTaskId 根据验证批处理任务ID查找手机号码
+func (r *gormMobileNumberRepository) FindByVerificationBatchTaskId(ctx context.Context, batchTaskId string) ([]models.MobileNumber, error) {
+	var mobileNumbers []models.MobileNumber
+	err := r.db.WithContext(ctx).Where("verification_batch_task_id = ?", batchTaskId).Find(&mobileNumbers).Error
+	return mobileNumbers, err
+}
+
+// FindConfirmedNumberIdsByTokenId 查找通过指定令牌确认使用的号码ID列表
+func (r *gormMobileNumberRepository) FindConfirmedNumberIdsByTokenId(ctx context.Context, tokenId uint) ([]uint, error) {
+	var results []struct {
+		ID uint
+	}
+
+	// 查询在指定令牌生成后被确认使用的号码
+	err := r.db.WithContext(ctx).Model(&models.MobileNumber{}).
+		Joins("JOIN verification_tokens vt ON vt.id = ?", tokenId).
+		Where("mobile_numbers.last_confirmation_date > vt.created_at").
+		Select("mobile_numbers.id").
+		Scan(&results).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	// 提取ID列表
+	ids := make([]uint, 0, len(results))
+	for _, result := range results {
+		ids = append(ids, result.ID)
+	}
+
+	return ids, nil
 }

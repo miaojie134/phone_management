@@ -18,9 +18,8 @@ import (
 // 定义一些服务层特定的错误，如果需要的话
 var ErrEmailDispatchFailed = errors.New("邮件发送失败")
 var ErrBatchTaskNotFound = errors.New("批处理任务未找到")
-var ErrTokenNotFound = errors.New("验证令牌未找到")
+var ErrTokenNotFound = errors.New("验证令牌不存在")
 var ErrTokenExpired = errors.New("验证令牌已过期")
-var ErrTokenUsed = errors.New("验证令牌已使用")
 
 // 号码确认信息结构
 type VerificationInfoResponse struct {
@@ -36,14 +35,14 @@ type NumberToVerify struct {
 	CurrentStatusInSystem string `json:"currentStatusInSystem"`
 }
 
-// VerificationService 定义了验证服务的接口
+// VerificationService 定义了号码验证服务的接口
 type VerificationService interface {
 	// InitiateVerificationProcess 启动一个新的验证批处理任务，并返回批处理ID
 	InitiateVerificationProcess(ctx context.Context, scopeType models.VerificationScopeType, scopeValues []string, durationDays int) (batchID string, err error)
 	// GetVerificationBatchStatus 获取指定批处理任务的当前状态和统计信息
 	GetVerificationBatchStatus(ctx context.Context, batchID string) (*models.VerificationBatchTask, error)
 	// GetVerificationInfo 获取待确认的号码信息
-	GetVerificationInfo(ctx context.Context, token string) (*VerificationInfoResponse, error)
+	GetVerificationInfo(ctx context.Context, token string) (*models.VerificationInfo, error)
 	// SubmitVerificationResult 提交号码确认结果
 	SubmitVerificationResult(ctx context.Context, token string, request *models.VerificationSubmission) error
 	// ProcessVerificationBatch (内部方法，可不由接口暴露，或仅为测试暴露)
@@ -72,8 +71,8 @@ func NewVerificationService(employeeRepo repositories.EmployeeRepository, verifi
 	}
 }
 
-// GetVerificationInfo 获取待确认的号码信息
-func (s *verificationService) GetVerificationInfo(ctx context.Context, token string) (*VerificationInfoResponse, error) {
+// GetVerificationInfo 获取验证信息
+func (s *verificationService) GetVerificationInfo(ctx context.Context, token string) (*models.VerificationInfo, error) {
 	// 1. 验证token的有效性
 	verificationToken, err := s.verificationTokenRepo.FindByToken(ctx, token)
 	if err != nil {
@@ -85,9 +84,6 @@ func (s *verificationService) GetVerificationInfo(ctx context.Context, token str
 
 	// 2. 检查token状态
 	if verificationToken.Status != models.VerificationTokenStatusPending {
-		if verificationToken.Status == models.VerificationTokenStatusUsed {
-			return nil, ErrTokenUsed
-		}
 		return nil, ErrTokenExpired
 	}
 
@@ -96,34 +92,97 @@ func (s *verificationService) GetVerificationInfo(ctx context.Context, token str
 		return nil, ErrTokenExpired
 	}
 
-	// 4. 获取员工信息
-	employee, err := s.employeeRepo.GetEmployeeByEmployeeID(verificationToken.EmployeeID)
+	// 4. 获取用户信息
+	user, err := s.employeeRepo.GetEmployeeByEmployeeID(verificationToken.EmployeeID)
 	if err != nil {
-		return nil, fmt.Errorf("查询员工信息失败: %w", err)
+		return nil, fmt.Errorf("查询用户信息失败: %w", err)
 	}
 
-	// 5. 获取员工名下的号码信息（状态为"在用"或"闲置"的号码）
-	numbers, err := s.mobileNumberRepo.FindAssignedToEmployee(ctx, verificationToken.EmployeeID)
+	// 5. 获取需要确认的号码列表
+	mobileNumbers, err := s.mobileNumberRepo.FindAssignedToEmployee(ctx, verificationToken.EmployeeID)
 	if err != nil {
-		return nil, fmt.Errorf("查询员工名下号码失败: %w", err)
+		return nil, fmt.Errorf("获取号码列表失败: %w", err)
 	}
 
-	// 6. 构建响应
-	numbersToVerify := make([]NumberToVerify, 0, len(numbers))
-	for _, number := range numbers {
-		if number.Status == string(models.StatusInUse) || number.Status == string(models.StatusIdle) {
-			numbersToVerify = append(numbersToVerify, NumberToVerify{
-				MobileNumberId:        number.ID,
-				PhoneNumber:           number.PhoneNumber,
-				CurrentStatusInSystem: number.Status,
-			})
+	// 获取已报告问题的号码ID列表
+	reportedIssueNumberIds, err := s.userReportedIssueRepo.FindReportedMobileNumberIdsByTokenId(ctx, verificationToken.ID)
+	if err != nil {
+		return nil, fmt.Errorf("获取报告问题号码列表失败: %w", err)
+	}
+
+	// 获取已确认使用的号码ID列表
+	confirmedNumberIds, err := s.mobileNumberRepo.FindConfirmedNumberIdsByTokenId(ctx, verificationToken.ID)
+	if err != nil {
+		return nil, fmt.Errorf("获取已确认号码列表失败: %w", err)
+	}
+
+	// 获取用户通过此token已报告的未列出号码
+	previouslyReported, err := s.userReportedIssueRepo.FindUnlistedByTokenId(ctx, verificationToken.ID)
+	if err != nil {
+		// 如果查询出错，可以记录日志，但为了不阻塞主流程，这里暂时不直接返回错误
+		// 或者根据业务需求决定是否必须返回错误
+		fmt.Printf("获取已报告的未列出号码失败: %v (token_id: %d)\n", err, verificationToken.ID)
+		// previouslyReported 将保持为 nil 或空切片
+	}
+
+	// 转换为响应格式
+	phoneNumbers := make([]models.VerificationPhoneNumber, 0, len(mobileNumbers))
+	for _, number := range mobileNumbers {
+		status := "pending"
+
+		// 检查号码是否已被报告问题
+		for _, reportedId := range reportedIssueNumberIds {
+			if reportedId == number.ID {
+				status = "reported"
+				break
+			}
 		}
+
+		// 检查号码是否已确认使用
+		if status == "pending" {
+			for _, confirmedId := range confirmedNumberIds {
+				if confirmedId == number.ID {
+					status = "confirmed"
+					break
+				}
+			}
+		}
+
+		// 设置部门信息
+		department := ""
+		if user.Department != nil {
+			department = *user.Department
+		}
+
+		phoneNumbers = append(phoneNumbers, models.VerificationPhoneNumber{
+			ID:          number.ID,
+			PhoneNumber: number.PhoneNumber,
+			Department:  department,
+			Status:      status,
+		})
 	}
 
-	return &VerificationInfoResponse{
-		EmployeeName:    employee.FullName,
-		TokenValidUntil: verificationToken.ExpiresAt,
-		NumbersToVerify: numbersToVerify,
+	// 转换 previouslyReported 为响应格式
+	reportedUnlistedInfos := make([]models.ReportedUnlistedNumberInfo, 0, len(previouslyReported))
+	for _, reportedIssue := range previouslyReported {
+		info := models.ReportedUnlistedNumberInfo{
+			ReportedAt: reportedIssue.CreatedAt, // 使用报告问题记录的创建时间
+		}
+		if reportedIssue.ReportedPhoneNumber != nil {
+			info.PhoneNumber = *reportedIssue.ReportedPhoneNumber
+		}
+		if reportedIssue.UserComment != nil {
+			info.UserComment = *reportedIssue.UserComment
+		}
+		reportedUnlistedInfos = append(reportedUnlistedInfos, info)
+	}
+
+	return &models.VerificationInfo{
+		EmployeeID:                 user.EmployeeID,
+		EmployeeName:               user.FullName,
+		PhoneNumbers:               phoneNumbers,
+		PreviouslyReportedUnlisted: reportedUnlistedInfos, // 填充新字段
+		ExpiresAt:                  verificationToken.ExpiresAt,
 	}, nil
 }
 
@@ -340,9 +399,6 @@ func (s *verificationService) SubmitVerificationResult(ctx context.Context, toke
 
 	// 2. 检查token状态
 	if verificationToken.Status != models.VerificationTokenStatusPending {
-		if verificationToken.Status == models.VerificationTokenStatusUsed {
-			return ErrTokenUsed
-		}
 		return ErrTokenExpired
 	}
 
@@ -397,10 +453,6 @@ func (s *verificationService) SubmitVerificationResult(ctx context.Context, toke
 		}
 	}
 
-	// 6. 更新token状态为已使用
-	if err := s.verificationTokenRepo.UpdateStatus(ctx, token, models.VerificationTokenStatusUsed); err != nil {
-		return fmt.Errorf("更新令牌状态失败: %w", err)
-	}
-
+	// 不再更新令牌状态为used，保持pending状态直到过期
 	return nil
 }

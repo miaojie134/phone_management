@@ -21,7 +21,6 @@ const (
 	VerificationScopeEmployeeIDs VerificationScopeType = "employee_ids"
 
 	VerificationTokenStatusPending VerificationTokenStatus = "pending"
-	VerificationTokenStatusUsed    VerificationTokenStatus = "used"
 	VerificationTokenStatusExpired VerificationTokenStatus = "expired"
 )
 
@@ -112,6 +111,30 @@ type UnlistedNumber struct {
 
 // VerificationSubmission 表示用户提交的号码确认结果
 type VerificationSubmission struct {
-	VerifiedNumbers         []VerifiedNumber `json:"verifiedNumbers" binding:"required,dive"`
+	VerifiedNumbers         []VerifiedNumber `json:"verifiedNumbers" binding:"omitempty,dive"`
 	UnlistedNumbersReported []UnlistedNumber `json:"unlistedNumbersReported,omitempty" binding:"omitempty,dive"`
+}
+
+// VerificationPhoneNumber 表示验证流程中的手机号码信息
+type VerificationPhoneNumber struct {
+	ID          uint   `json:"id"`
+	PhoneNumber string `json:"phoneNumber"`
+	Department  string `json:"department"`
+	Status      string `json:"status"` // pending, confirmed, reported
+}
+
+// VerificationInfo 表示验证信息的响应结构
+type VerificationInfo struct {
+	EmployeeID                 string                       `json:"employeeId"`
+	EmployeeName               string                       `json:"employeeName"`
+	PhoneNumbers               []VerificationPhoneNumber    `json:"phoneNumbers"`
+	PreviouslyReportedUnlisted []ReportedUnlistedNumberInfo `json:"previouslyReportedUnlisted,omitempty"`
+	ExpiresAt                  time.Time                    `json:"expiresAt"`
+}
+
+// ReportedUnlistedNumberInfo 表示用户已报告的未列出号码的信息
+type ReportedUnlistedNumberInfo struct {
+	PhoneNumber string    `json:"phoneNumber"`
+	UserComment string    `json:"userComment,omitempty"`
+	ReportedAt  time.Time `json:"reportedAt"`
 }
