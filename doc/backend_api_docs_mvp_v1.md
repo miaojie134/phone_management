@@ -379,8 +379,8 @@ GET /info (无需 JWT 认证, 令牌本身即是认证)
 "employeeName": "张三",
 "tokenValidUntil": "YYYY-MM-DDTHH:mm:ssZ",
 "numbersToVerify": [
-{ "mobileNumberId": "db_id_1", "phoneNumber": "13800138000", "currentStatusInSystem": "在用", "remarksByAdmin": "销售部使用" },
-{ "mobileNumberId": "db_id_2", "phoneNumber": "13900139000", "currentStatusInSystem": "在用", "remarksByAdmin": "" }
+{ "mobileNumberId": "db_id_1", "phoneNumber": "13800138000", "currentStatusInSystem": "在用"},
+{ "mobileNumberId": "db_id_2", "phoneNumber": "13900139000", "currentStatusInSystem": "在用"}
 ]
 }
 

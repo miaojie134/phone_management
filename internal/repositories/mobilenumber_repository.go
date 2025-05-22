@@ -37,6 +37,10 @@ type MobileNumberRepository interface {
 	UnassignMobileNumber(numberID uint, reclaimDate time.Time) (*models.MobileNumber, error)
 	// FindAssignedToEmployee 查询分配给特定员工的手机号码
 	FindAssignedToEmployee(ctx context.Context, employeeID string) ([]models.MobileNumber, error)
+	// UpdateLastConfirmationDate 更新号码的最后确认日期
+	UpdateLastConfirmationDate(ctx context.Context, numberID uint) error
+	// MarkAsReportedByUser 将号码标记为用户报告问题
+	MarkAsReportedByUser(ctx context.Context, numberID uint) error
 }
 
 // gormMobileNumberRepository 是 MobileNumberRepository 的 GORM 实现
@@ -434,4 +438,20 @@ func (r *gormMobileNumberRepository) FindAssignedToEmployee(ctx context.Context,
 		return nil, err
 	}
 	return numbers, nil
+}
+
+// UpdateLastConfirmationDate 更新号码的最后确认日期
+func (r *gormMobileNumberRepository) UpdateLastConfirmationDate(ctx context.Context, numberID uint) error {
+	return r.db.WithContext(ctx).Model(&models.MobileNumber{}).
+		Where("id = ?", numberID).
+		Update("last_confirmation_date", time.Now()).
+		Error
+}
+
+// MarkAsReportedByUser 将号码标记为用户报告问题
+func (r *gormMobileNumberRepository) MarkAsReportedByUser(ctx context.Context, numberID uint) error {
+	return r.db.WithContext(ctx).Model(&models.MobileNumber{}).
+		Where("id = ?", numberID).
+		Update("status", "待核实-用户报告").
+		Error
 }

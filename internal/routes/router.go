@@ -108,11 +108,13 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		// --- 号码验证路由 ---
 		verificationTokenRepo := repositories.NewGormVerificationTokenRepository(db)
 		verificationBatchTaskRepo := repositories.NewGormVerificationBatchTaskRepository(db)
-		verificationService := services.NewVerificationService(employeeRepo, verificationTokenRepo, verificationBatchTaskRepo, mobileNumberRepo)
+		userReportedIssueRepo := repositories.NewGormUserReportedIssueRepository(db)
+		verificationService := services.NewVerificationService(employeeRepo, verificationTokenRepo, verificationBatchTaskRepo, mobileNumberRepo, userReportedIssueRepo)
 		verificationHandler := handlers.NewVerificationHandler(verificationService)
 
 		// 公开的验证接口，不需要JWT认证
 		apiV1.GET("/verification/info", verificationHandler.GetVerificationInfo)
+		apiV1.POST("/verification/submit", verificationHandler.SubmitVerificationResult)
 
 		verificationGroup := apiV1.Group("/verification")
 		verificationGroup.Use(jwtAuthMiddleware) // 对 /verification 路由组应用 JWT 中间件

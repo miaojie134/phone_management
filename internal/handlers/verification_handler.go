@@ -63,11 +63,6 @@ func (h *VerificationHandler) GetVerificationInfo(c *gin.Context) {
 	utils.RespondSuccess(c, http.StatusOK, info, "成功获取待确认号码信息")
 }
 
-// GetBatchStatusResponse 定义了获取批处理任务状态 API 的响应体 (直接使用 models.VerificationBatchTask 即可)
-// type GetBatchStatusResponse struct {
-// 	 models.VerificationBatchTask
-// }
-
 // InitiateVerification godoc
 // @Summary 发起号码使用确认流程 (异步)
 // @Description 管理员调用此接口后，系统创建一个批处理任务来为目标员工生成 VerificationTokens 并发送邮件。接口立即返回批处理ID。
@@ -149,4 +144,58 @@ func (h *VerificationHandler) GetVerificationBatchStatus(c *gin.Context) {
 	}
 
 	utils.RespondSuccess(c, http.StatusOK, task, "成功获取批处理任务状态。")
+}
+
+// SubmitVerificationResult godoc
+// @Summary 提交号码确认结果
+// @Description 用户提交其号码确认结果，包括"确认使用"或"报告问题"的号码，以及可能上报的未在系统中列出但实际在使用的号码
+// @Tags Verification
+// @Accept json
+// @Produce json
+// @Param token query string true "验证令牌 - 从邮件链接中获取的token参数"
+// @Param body body object true "请求体" Schema(object,required=verifiedNumbers)
+// @Param verifiedNumbers body array true "用户需确认的号码列表，必填" items(object,required=mobileNumberId action)
+// @Param mobileNumberId body integer true "号码ID，与GetVerificationInfo接口返回的ID一致" example(123456)
+// @Param action body string true "操作类型，必须是'confirm_usage'(确认使用)或'report_issue'(报告问题)" enums(confirm_usage,report_issue) example(confirm_usage)
+// @Param userComment body string false "用户备注，当action=report_issue时建议填写" example("这个号码我已经不用了")
+// @Param unlistedNumbersReported body array false "用户报告的未在系统中列出但实际在使用的号码" items(object,required=phoneNumber)
+// @Param phoneNumber body string true "手机号码，11位数字" example(13800138000)
+// @Param userComment body string false "用户备注，说明该号码的用途等" example("这个号码是公司发的，我一直在用")
+// @Success 200 {object} utils.SuccessResponse "提交成功"
+// @Failure 400 {object} utils.APIErrorResponse "请求参数无效"
+// @Failure 403 {object} utils.APIErrorResponse "令牌无效或已过期"
+// @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
+// @Router /verification/submit [post]
+func (h *VerificationHandler) SubmitVerificationResult(c *gin.Context) {
+	token := c.Query("token")
+	if token == "" {
+		utils.RespondAPIError(c, http.StatusBadRequest, "请求参数无效", "缺少token参数")
+		return
+	}
+
+	var req models.VerificationSubmission
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.RespondValidationError(c, err.Error())
+		return
+	}
+
+	// 请求参数基本验证
+	if len(req.VerifiedNumbers) == 0 {
+		utils.RespondAPIError(c, http.StatusBadRequest, "请求参数无效", "verifiedNumbers不能为空")
+		return
+	}
+
+	// 处理确认结果，直接传递models中的结构体
+	err := h.verificationService.SubmitVerificationResult(c.Request.Context(), token, &req)
+	if err != nil {
+		switch err {
+		case services.ErrTokenNotFound, services.ErrTokenExpired, services.ErrTokenUsed:
+			utils.RespondAPIError(c, http.StatusForbidden, "无效或已过期的链接，或已提交过。", err.Error())
+		default:
+			utils.RespondInternalServerError(c, "提交确认结果失败", err.Error())
+		}
+		return
+	}
+
+	utils.RespondSuccess(c, http.StatusOK, nil, "您的反馈已成功提交，感谢您的配合！")
 }

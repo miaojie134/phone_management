@@ -11,6 +11,7 @@ import (
 type VerificationTokenRepository interface {
 	Create(ctx context.Context, token *models.VerificationToken) error
 	FindByToken(ctx context.Context, token string) (*models.VerificationToken, error)
+	UpdateStatus(ctx context.Context, token string, status models.VerificationTokenStatus) error
 	// Future methods for managing tokens can be added here, e.g., FindByToken, UpdateStatus
 }
 
@@ -36,4 +37,9 @@ func (r *gormVerificationTokenRepository) FindByToken(ctx context.Context, token
 		return nil, err
 	}
 	return &verificationToken, nil
+}
+
+// UpdateStatus 更新验证令牌的状态
+func (r *gormVerificationTokenRepository) UpdateStatus(ctx context.Context, token string, status models.VerificationTokenStatus) error {
+	return r.db.WithContext(ctx).Model(&models.VerificationToken{}).Where("token = ?", token).Update("status", status).Error
 }

@@ -44,6 +44,8 @@ type VerificationService interface {
 	GetVerificationBatchStatus(ctx context.Context, batchID string) (*models.VerificationBatchTask, error)
 	// GetVerificationInfo 获取待确认的号码信息
 	GetVerificationInfo(ctx context.Context, token string) (*VerificationInfoResponse, error)
+	// SubmitVerificationResult 提交号码确认结果
+	SubmitVerificationResult(ctx context.Context, token string, request *models.VerificationSubmission) error
 	// ProcessVerificationBatch (内部方法，可不由接口暴露，或仅为测试暴露)
 	// processVerificationBatch(batchID string) // 改为非导出，由 InitiateVerificationProcess 内部 goroutine 调用
 }
@@ -54,16 +56,18 @@ type verificationService struct {
 	verificationTokenRepo repositories.VerificationTokenRepository
 	batchTaskRepo         repositories.VerificationBatchTaskRepository // 新增批处理任务仓库
 	mobileNumberRepo      repositories.MobileNumberRepository          // 新增手机号码仓库
+	userReportedIssueRepo repositories.UserReportedIssueRepository     // 新增用户报告问题仓库
 	appConfig             *configs.Configuration
 }
 
 // NewVerificationService 构造函数现已注入 appConfig
-func NewVerificationService(employeeRepo repositories.EmployeeRepository, verificationTokenRepo repositories.VerificationTokenRepository, batchTaskRepo repositories.VerificationBatchTaskRepository, mobileNumberRepo repositories.MobileNumberRepository) VerificationService {
+func NewVerificationService(employeeRepo repositories.EmployeeRepository, verificationTokenRepo repositories.VerificationTokenRepository, batchTaskRepo repositories.VerificationBatchTaskRepository, mobileNumberRepo repositories.MobileNumberRepository, userReportedIssueRepo repositories.UserReportedIssueRepository) VerificationService {
 	return &verificationService{
 		employeeRepo:          employeeRepo,
 		verificationTokenRepo: verificationTokenRepo,
 		batchTaskRepo:         batchTaskRepo,
 		mobileNumberRepo:      mobileNumberRepo,
+		userReportedIssueRepo: userReportedIssueRepo,
 		appConfig:             &configs.AppConfig,
 	}
 }
@@ -321,4 +325,82 @@ func (s *verificationService) InitiateVerificationProcess(ctx context.Context, s
 	go s.processVerificationBatch(newTask) // 传递新创建的任务对象，确保ID和其他初始值可用
 
 	return newTask.ID, nil
+}
+
+// SubmitVerificationResult 提交号码确认结果
+func (s *verificationService) SubmitVerificationResult(ctx context.Context, token string, request *models.VerificationSubmission) error {
+	// 1. 验证token的有效性
+	verificationToken, err := s.verificationTokenRepo.FindByToken(ctx, token)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrTokenNotFound
+		}
+		return fmt.Errorf("查询验证令牌失败: %w", err)
+	}
+
+	// 2. 检查token状态
+	if verificationToken.Status != models.VerificationTokenStatusPending {
+		if verificationToken.Status == models.VerificationTokenStatusUsed {
+			return ErrTokenUsed
+		}
+		return ErrTokenExpired
+	}
+
+	// 3. 检查token是否过期
+	if time.Now().After(verificationToken.ExpiresAt) {
+		return ErrTokenExpired
+	}
+
+	// 4. 处理verified numbers
+	for _, verifiedNumber := range request.VerifiedNumbers {
+		switch verifiedNumber.Action {
+		case "confirm_usage":
+			if err := s.mobileNumberRepo.UpdateLastConfirmationDate(ctx, verifiedNumber.MobileNumberId); err != nil {
+				return fmt.Errorf("更新号码确认日期失败: %w", err)
+			}
+		case "report_issue":
+			if err := s.mobileNumberRepo.MarkAsReportedByUser(ctx, verifiedNumber.MobileNumberId); err != nil {
+				return fmt.Errorf("标记号码为用户报告问题失败: %w", err)
+			}
+
+			// 创建用户报告问题记录
+			reportedIssue := &models.UserReportedIssue{
+				VerificationTokenId:  &verificationToken.ID,
+				ReportedByEmployeeID: verificationToken.EmployeeID,
+				MobileNumberDbId:     &verifiedNumber.MobileNumberId,
+				IssueType:            "number_issue",
+				UserComment:          &verifiedNumber.UserComment,
+				AdminActionStatus:    "pending_review",
+			}
+
+			if err := s.userReportedIssueRepo.CreateReportedIssue(ctx, reportedIssue); err != nil {
+				return fmt.Errorf("创建用户报告问题记录失败: %w", err)
+			}
+		default:
+			return fmt.Errorf("无效的操作类型: %s", verifiedNumber.Action)
+		}
+	}
+
+	// 5. 处理unlisted numbers
+	for _, unlistedNumber := range request.UnlistedNumbersReported {
+		reportedIssue := &models.UserReportedIssue{
+			VerificationTokenId:  &verificationToken.ID,
+			ReportedByEmployeeID: verificationToken.EmployeeID,
+			ReportedPhoneNumber:  &unlistedNumber.PhoneNumber,
+			IssueType:            "unlisted_number",
+			UserComment:          &unlistedNumber.UserComment,
+			AdminActionStatus:    "pending_review",
+		}
+
+		if err := s.userReportedIssueRepo.CreateReportedIssue(ctx, reportedIssue); err != nil {
+			return fmt.Errorf("创建未列出号码报告记录失败: %w", err)
+		}
+	}
+
+	// 6. 更新token状态为已使用
+	if err := s.verificationTokenRepo.UpdateStatus(ctx, token, models.VerificationTokenStatusUsed); err != nil {
+		return fmt.Errorf("更新令牌状态失败: %w", err)
+	}
+
+	return nil
 }

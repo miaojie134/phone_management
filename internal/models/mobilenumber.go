@@ -15,22 +15,24 @@ const (
 	StatusPendingDeactivation NumberStatus = "待注销"
 	StatusDeactivated         NumberStatus = "已注销"
 	StatusRiskPending         NumberStatus = "待核实-办卡人离职"
+	StatusUserReport          NumberStatus = "待核实-用户报告"
 )
 
 // MobileNumber 对应于数据库中的 mobile_numbers 表
 type MobileNumber struct {
-	ID                  uint           `json:"id" gorm:"primaryKey"`
-	PhoneNumber         string         `json:"phoneNumber" gorm:"unique;not null;size:11" binding:"required,len=11,numeric"`
-	ApplicantEmployeeID string         `json:"applicantEmployeeId" gorm:"column:applicant_employee_id;not null" binding:"required"` // 办卡人员工业务工号
-	ApplicationDate     time.Time      `json:"applicationDate" gorm:"not null" binding:"required,time_format=2006-01-02"`
-	CurrentEmployeeID   *string        `json:"currentEmployeeId,omitempty" gorm:"column:current_employee_id"` // 当前使用人员工业务工号
-	Status              string         `json:"status" gorm:"not null" binding:"required,oneof=闲置 在用 待注销 已注销 待核实-办卡人离职"`
-	Vendor              string         `json:"vendor" binding:"max=100"`
-	Remarks             string         `json:"remarks" binding:"max=255"`
-	CancellationDate    *time.Time     `json:"cancellationDate" binding:"omitempty,time_format=2006-01-02"`
-	CreatedAt           time.Time      `json:"createdAt" gorm:"autoCreateTime"`
-	UpdatedAt           time.Time      `json:"updatedAt" gorm:"autoUpdateTime"`
-	DeletedAt           gorm.DeletedAt `json:"deletedAt,omitempty" gorm:"index" swaggertype:"string" format:"date-time"`
+	ID                   uint           `json:"id" gorm:"primaryKey"`
+	PhoneNumber          string         `json:"phoneNumber" gorm:"unique;not null;size:11" binding:"required,len=11,numeric"`
+	ApplicantEmployeeID  string         `json:"applicantEmployeeId" gorm:"column:applicant_employee_id;not null" binding:"required"` // 办卡人员工业务工号
+	ApplicationDate      time.Time      `json:"applicationDate" gorm:"not null" binding:"required,time_format=2006-01-02"`
+	CurrentEmployeeID    *string        `json:"currentEmployeeId,omitempty" gorm:"column:current_employee_id"` // 当前使用人员工业务工号
+	Status               string         `json:"status" gorm:"not null" binding:"required,oneof=闲置 在用 待注销 已注销 待核实-办卡人离职 待核实-用户报告"`
+	Vendor               string         `json:"vendor" binding:"max=100"`
+	Remarks              string         `json:"remarks" binding:"max=255"`
+	CancellationDate     *time.Time     `json:"cancellationDate" binding:"omitempty,time_format=2006-01-02"`
+	LastConfirmationDate *time.Time     `json:"lastConfirmationDate" gorm:"column:last_confirmation_date"` // 最后确认日期
+	CreatedAt            time.Time      `json:"createdAt" gorm:"autoCreateTime"`
+	UpdatedAt            time.Time      `json:"updatedAt" gorm:"autoUpdateTime"`
+	DeletedAt            gorm.DeletedAt `json:"deletedAt,omitempty" gorm:"index" swaggertype:"string" format:"date-time"`
 }
 
 // TableName 指定 MobileNumber 结构体对应的数据库表名
@@ -59,7 +61,7 @@ type MobileNumberResponse struct {
 
 // MobileNumberUpdatePayload 定义了更新手机号码信息的请求体结构
 type MobileNumberUpdatePayload struct {
-	Status  *string `json:"status,omitempty" binding:"omitempty,oneof=闲置 在用 待注销 已注销 待核实-办卡人离职"`
+	Status  *string `json:"status,omitempty" binding:"omitempty,oneof=闲置 在用 待注销 已注销 待核实-办卡人离职 待核实-用户报告"`
 	Vendor  *string `json:"vendor,omitempty" binding:"omitempty,max=100"`
 	Remarks *string `json:"remarks,omitempty" binding:"omitempty,max=255"`
 }
