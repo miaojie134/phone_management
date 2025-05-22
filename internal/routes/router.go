@@ -105,6 +105,22 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			employeeRoutes.POST("/import", employeeHandler.BatchImportEmployees)
 		}
 
+		// --- 号码验证路由 ---
+		verificationTokenRepo := repositories.NewGormVerificationTokenRepository(db)
+		verificationBatchTaskRepo := repositories.NewGormVerificationBatchTaskRepository(db)
+		verificationService := services.NewVerificationService(employeeRepo, verificationTokenRepo, verificationBatchTaskRepo)
+		verificationHandler := handlers.NewVerificationHandler(verificationService)
+
+		verificationGroup := apiV1.Group("/verification")
+		verificationGroup.Use(jwtAuthMiddleware) // 对 /verification 路由组应用 JWT 中间件
+		{
+			// POST /api/v1/verification/initiate
+			verificationGroup.POST("/initiate", verificationHandler.InitiateVerification)
+			// GET /api/v1/verification/batch/{batchId}/status
+			verificationGroup.GET("/batch/:batchId/status", verificationHandler.GetVerificationBatchStatus)
+			// 其他 /verification 子路由可以在这里添加，例如 GET /info, POST /submit, GET /admin/status
+		}
+
 	}
 
 	// Swagger 文档路由 (如果使用 swaggo)

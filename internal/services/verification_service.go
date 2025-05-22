@@ -1,0 +1,248 @@
+package services
+
+import (
+	"context"
+	"encoding/json" // 用于序列化 RequestedScopeValues
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/phone_management/configs"
+	"github.com/phone_management/internal/models"
+	"github.com/phone_management/internal/repositories"
+	"github.com/phone_management/pkg/email"
+	"gorm.io/gorm"
+)
+
+// 定义一些服务层特定的错误，如果需要的话
+var ErrEmailDispatchFailed = errors.New("邮件发送失败")
+var ErrBatchTaskNotFound = errors.New("批处理任务未找到")
+
+// VerificationService 定义了验证服务的接口
+type VerificationService interface {
+	// InitiateVerificationProcess 启动一个新的验证批处理任务，并返回批处理ID
+	InitiateVerificationProcess(ctx context.Context, scopeType models.VerificationScopeType, scopeValues []string, durationDays int) (batchID string, err error)
+	// GetVerificationBatchStatus 获取指定批处理任务的当前状态和统计信息
+	GetVerificationBatchStatus(ctx context.Context, batchID string) (*models.VerificationBatchTask, error)
+	// ProcessVerificationBatch (内部方法，可不由接口暴露，或仅为测试暴露)
+	// processVerificationBatch(batchID string) // 改为非导出，由 InitiateVerificationProcess 内部 goroutine 调用
+}
+
+// verificationService 结构体现已包含 appConfig
+type verificationService struct {
+	employeeRepo          repositories.EmployeeRepository
+	verificationTokenRepo repositories.VerificationTokenRepository
+	batchTaskRepo         repositories.VerificationBatchTaskRepository // 新增批处理任务仓库
+	appConfig             *configs.Configuration
+}
+
+// NewVerificationService 构造函数现已注入 appConfig
+func NewVerificationService(employeeRepo repositories.EmployeeRepository, verificationTokenRepo repositories.VerificationTokenRepository, batchTaskRepo repositories.VerificationBatchTaskRepository) VerificationService {
+	return &verificationService{
+		employeeRepo:          employeeRepo,
+		verificationTokenRepo: verificationTokenRepo,
+		batchTaskRepo:         batchTaskRepo,
+		appConfig:             &configs.AppConfig,
+	}
+}
+
+// GetVerificationBatchStatus 获取批处理任务的状态
+func (s *verificationService) GetVerificationBatchStatus(ctx context.Context, batchID string) (*models.VerificationBatchTask, error) {
+	task, err := s.batchTaskRepo.GetByID(ctx, batchID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) { // 假设 gorm 在这里
+			return nil, ErrBatchTaskNotFound
+		}
+		return nil, fmt.Errorf("获取批处理任务失败: %w", err)
+	}
+	return task, nil
+}
+
+// processVerificationBatch 是实际执行批量处理的内部方法
+// 它将在一个单独的 goroutine 中运行
+func (s *verificationService) processVerificationBatch(initialTask *models.VerificationBatchTask) {
+	ctx := context.Background() // 为后台任务创建一个新的上下文
+	batchID := initialTask.ID
+
+	var employees []models.Employee
+	var err error
+
+	// 将 scopeValues (如果存在) 从 JSON 字符串转换回 []string
+	var actualScopeValues []string
+	if initialTask.RequestedScopeValues != nil && *initialTask.RequestedScopeValues != "" {
+		if jsonErr := json.Unmarshal([]byte(*initialTask.RequestedScopeValues), &actualScopeValues); jsonErr != nil {
+			fmt.Printf("处理批处理 %s 失败：无法解析 scopeValues: %v\n", batchID, jsonErr)
+			_ = s.batchTaskRepo.UpdateCountsAndStatus(ctx, batchID, 0, 0, 0, 0, models.BatchTaskStatusFailed, &models.EmailFailureDetail{Reason: "无法解析请求参数"})
+			return
+		}
+	}
+
+	switch initialTask.RequestedScopeType {
+	case models.VerificationScopeAllUsers:
+		employees, err = s.employeeRepo.FindAllActive(ctx)
+	case models.VerificationScopeDepartment:
+		employees, err = s.employeeRepo.FindActiveByDepartmentNames(ctx, actualScopeValues)
+	case models.VerificationScopeEmployeeIDs:
+		employees, err = s.employeeRepo.FindActiveByEmployeeIDs(ctx, actualScopeValues)
+	default:
+		err = fmt.Errorf("无效的范围类型: %s", initialTask.RequestedScopeType)
+	}
+
+	if err != nil {
+		fmt.Printf("处理批处理 %s 失败：查找员工失败: %v\n", batchID, err)
+		_ = s.batchTaskRepo.UpdateCountsAndStatus(ctx, batchID, 0, 0, 0, 0, models.BatchTaskStatusFailed, &models.EmailFailureDetail{Reason: "查找目标员工失败: " + err.Error()})
+		return
+	}
+
+	if len(employees) == 0 {
+		fmt.Printf("处理批处理 %s：没有找到符合条件的员工\n", batchID)
+		_ = s.batchTaskRepo.UpdateCountsAndStatus(ctx, batchID, 0, 0, 0, 0, models.BatchTaskStatusCompleted, nil) // 没有员工也算完成
+		return
+	}
+
+	// 更新任务的总处理员工数 (如果创建时未设置或不准确)
+	if initialTask.TotalEmployeesToProcess != len(employees) {
+		initialTask.TotalEmployeesToProcess = len(employees)
+		// 这可以是一个单独的 Update 调用，或者在第一次 UpdateCountsAndStatus 时包含
+		_ = s.batchTaskRepo.Update(ctx, initialTask) // 更新总数
+	}
+
+	frontendBaseURL := s.appConfig.FrontendBaseURL
+	var localTokensGenerated, localEmailsAttempted, localEmailsSucceeded, localEmailsFailed int
+
+	for _, emp := range employees {
+		token := uuid.NewString()
+		expiresAt := time.Now().AddDate(0, 0, initialTask.RequestedDurationDays)
+		verificationToken := &models.VerificationToken{
+			EmployeeID: emp.EmployeeID,
+			Token:      token,
+			Status:     models.VerificationTokenStatusPending,
+			ExpiresAt:  expiresAt,
+		}
+
+		createErr := s.verificationTokenRepo.Create(ctx, verificationToken)
+		if createErr != nil {
+			fmt.Printf("批处理 %s：为员工 %s 创建令牌失败: %v\n", batchID, emp.EmployeeID, createErr)
+			// 即使令牌创建失败，也尝试记录为一次尝试（或根据业务逻辑定义）
+			// 这里我们不直接更新数据库，而是在循环结束后批量更新或根据 newStatus 决定
+			// 但需要记录这个失败，可能影响邮件发送的尝试
+			// 简单起见，如果令牌创建失败，我们就不尝试发邮件了
+			_ = s.batchTaskRepo.UpdateCountsAndStatus(ctx, batchID, 0, 0, 0, 1, models.BatchTaskStatusInProgress, &models.EmailFailureDetail{
+				EmployeeID: emp.EmployeeID, EmployeeName: emp.FullName, EmailAddress: "N/A (Token creation failed)", Reason: "Token creation failed: " + createErr.Error(),
+			})
+			localEmailsFailed++ // 算作邮件处理失败的一部分
+			continue            // 继续处理下一个员工
+		}
+		localTokensGenerated++
+
+		if emp.Email != nil && *emp.Email != "" {
+			localEmailsAttempted++
+			verificationLink := fmt.Sprintf("%s/verify-numbers?token=%s", frontendBaseURL, token)
+			sendErr := email.SendVerificationEmail(*emp.Email, emp.FullName, verificationLink)
+			if sendErr != nil {
+				fmt.Printf("批处理 %s：发送确认邮件给 %s (%s) 失败: %v\n", batchID, emp.FullName, *emp.Email, sendErr)
+				localEmailsFailed++
+				_ = s.batchTaskRepo.UpdateCountsAndStatus(ctx, batchID, 1, 1, 0, 1, models.BatchTaskStatusInProgress, &models.EmailFailureDetail{
+					EmployeeID: emp.EmployeeID, EmployeeName: emp.FullName, EmailAddress: *emp.Email, Reason: sendErr.Error(),
+				})
+			} else {
+				localEmailsSucceeded++
+				_ = s.batchTaskRepo.UpdateCountsAndStatus(ctx, batchID, 1, 1, 1, 0, models.BatchTaskStatusInProgress, nil)
+			}
+		} else {
+			fmt.Printf("批处理 %s：员工 %s (%s) 缺少邮箱地址，跳过发送确认邮件\n", batchID, emp.FullName, emp.EmployeeID)
+			// 这种情况也算作一次尝试，但失败了（因为没有邮箱）
+			localEmailsAttempted++
+			localEmailsFailed++
+			_ = s.batchTaskRepo.UpdateCountsAndStatus(ctx, batchID, 1, 1, 0, 1, models.BatchTaskStatusInProgress, &models.EmailFailureDetail{
+				EmployeeID: emp.EmployeeID, EmployeeName: emp.FullName, EmailAddress: "N/A", Reason: "Missing email address",
+			})
+		}
+		// 这里的 UpdateCountsAndStatus 是在每次循环中调用，对于大量员工可能导致频繁DB操作。
+		// 更优化的方式是本地累积计数，然后定期（例如每 N 个员工或每隔 X 秒）或在最后统一更新数据库。
+		// 当前的简化实现是每次都更新。
+	}
+
+	// 所有员工处理完毕，决定最终状态
+	finalStatus := models.BatchTaskStatusCompleted
+	if localEmailsFailed > 0 {
+		finalStatus = models.BatchTaskStatusCompletedWithErrors
+	}
+	// 最后一次更新，确保所有计数准确，并设置最终状态
+	// 注意：如果之前的 UpdateCountsAndStatus 已经是原子增量，这里可能只需要更新最终状态和 ErrorSummary (如果 ErrorSummary 是累积的)
+	// 当前 UpdateCountsAndStatus 已经是增量，所以这里主要是设置最终状态
+	// 为了简化，我们假设最后一次调用 UpdateCountsAndStatus 来设置状态，并不再传递增量计数（因为它们已在循环中处理）
+	// 更好的做法是服务层维护 task 对象，并在最后调用一次 taskRepo.Update(ctx, task)
+	finalUpdateErr := s.batchTaskRepo.UpdateCountsAndStatus(ctx, batchID, 0, 0, 0, 0, finalStatus, nil) // 只更新状态
+	if finalUpdateErr != nil {
+		fmt.Printf("批处理 %s：更新最终状态失败: %v\n", batchID, finalUpdateErr)
+	}
+	fmt.Printf("批处理 %s 完成。总员工: %d, 令牌生成: %d, 邮件尝试: %d, 成功: %d, 失败: %d. 最终状态: %s\n",
+		batchID, len(employees), localTokensGenerated, localEmailsAttempted, localEmailsSucceeded, localEmailsFailed, finalStatus)
+}
+
+// InitiateVerificationProcess 创建一个新的批处理任务并异步启动它
+func (s *verificationService) InitiateVerificationProcess(ctx context.Context, scopeType models.VerificationScopeType, scopeValues []string, durationDays int) (batchID string, err error) {
+	// 1. 查找员工 (预检查，获取总数，但不在这里处理每个员工的细节)
+	// 这一步主要是为了得到 TotalEmployeesToProcess 的初始值和校验请求是否有效
+	var preliminaryEmployees []models.Employee
+	switch scopeType {
+	case models.VerificationScopeAllUsers:
+		preliminaryEmployees, err = s.employeeRepo.FindAllActive(ctx)
+	case models.VerificationScopeDepartment:
+		if len(scopeValues) == 0 {
+			return "", fmt.Errorf("部门名称列表不能为空")
+		}
+		preliminaryEmployees, err = s.employeeRepo.FindActiveByDepartmentNames(ctx, scopeValues)
+	case models.VerificationScopeEmployeeIDs:
+		if len(scopeValues) == 0 {
+			return "", fmt.Errorf("员工ID列表不能为空")
+		}
+		preliminaryEmployees, err = s.employeeRepo.FindActiveByEmployeeIDs(ctx, scopeValues)
+	default:
+		return "", fmt.Errorf("无效的范围类型: %s", scopeType)
+	}
+
+	if err != nil {
+		return "", fmt.Errorf("查找目标员工失败: %w", err)
+	}
+	if len(preliminaryEmployees) == 0 {
+		// 如果没有员工，可以不创建批处理任务，或者创建一个状态为Completed的空任务
+		return "", fmt.Errorf("没有找到符合条件的员工来发起确认流程")
+	}
+
+	// 序列化 scopeValues 以便存储
+	var scopeValuesJSON *string
+	if len(scopeValues) > 0 {
+		jsonBytes, jsonErr := json.Marshal(scopeValues)
+		if jsonErr != nil {
+			return "", fmt.Errorf("序列化 scopeValues 失败: %w", jsonErr)
+		}
+		s := string(jsonBytes)
+		scopeValuesJSON = &s
+	}
+
+	// 2. 创建 VerificationBatchTask 记录
+	newTask := &models.VerificationBatchTask{
+		// ID 会在 BeforeCreate hook 中生成
+		Status:                  models.BatchTaskStatusPending,
+		TotalEmployeesToProcess: len(preliminaryEmployees),
+		TokensGeneratedCount:    0,
+		EmailsAttemptedCount:    0,
+		EmailsSucceededCount:    0,
+		EmailsFailedCount:       0,
+		RequestedScopeType:      scopeType,
+		RequestedScopeValues:    scopeValuesJSON,
+		RequestedDurationDays:   durationDays,
+	}
+
+	if err := s.batchTaskRepo.Create(ctx, newTask); err != nil {
+		return "", fmt.Errorf("创建批处理任务失败: %w", err)
+	}
+
+	// 3. 异步启动 processVerificationBatch
+	go s.processVerificationBatch(newTask) // 传递新创建的任务对象，确保ID和其他初始值可用
+
+	return newTask.ID, nil
+}

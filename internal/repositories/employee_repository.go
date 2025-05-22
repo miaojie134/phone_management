@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"context"
 	"errors"
 	"strings"
 
@@ -27,6 +28,9 @@ type EmployeeRepository interface {
 	GetEmployeeByEmail(email string) (*models.Employee, error)
 	UpdateEmployee(employeeID string, updates map[string]interface{}) (*models.Employee, error)
 	GetEmployeesByFullName(fullName string) ([]*models.Employee, error)
+	FindAllActive(ctx context.Context) ([]models.Employee, error)
+	FindActiveByDepartmentNames(ctx context.Context, departmentNames []string) ([]models.Employee, error)
+	FindActiveByEmployeeIDs(ctx context.Context, employeeIDs []string) ([]models.Employee, error)
 	// 未来可以扩展其他方法，如 GetEmployeeByID, UpdateEmployee, DeleteEmployee 等
 }
 
@@ -241,4 +245,31 @@ func (r *gormEmployeeRepository) UpdateEmployee(employeeID string, updates map[s
 		return nil, err // 理论上此时应该能找到
 	}
 	return &updatedEmployee, nil
+}
+
+// FindAllActive 查询所有在职员工
+func (r *gormEmployeeRepository) FindAllActive(ctx context.Context) ([]models.Employee, error) {
+	var employees []models.Employee
+	if err := r.db.WithContext(ctx).Where("employment_status = ?", "Active").Find(&employees).Error; err != nil {
+		return nil, err
+	}
+	return employees, nil
+}
+
+// FindActiveByDepartmentNames 查询指定部门名称列表中的所有在职员工
+func (r *gormEmployeeRepository) FindActiveByDepartmentNames(ctx context.Context, departmentNames []string) ([]models.Employee, error) {
+	var employees []models.Employee
+	if err := r.db.WithContext(ctx).Where("employment_status = ? AND department IN (?)", "Active", departmentNames).Find(&employees).Error; err != nil {
+		return nil, err
+	}
+	return employees, nil
+}
+
+// FindActiveByEmployeeIDs 查询指定员工业务工号列表中的所有在职员工
+func (r *gormEmployeeRepository) FindActiveByEmployeeIDs(ctx context.Context, employeeIDs []string) ([]models.Employee, error) {
+	var employees []models.Employee
+	if err := r.db.WithContext(ctx).Where("employment_status = ? AND employee_id IN (?)", "Active", employeeIDs).Find(&employees).Error; err != nil {
+		return nil, err
+	}
+	return employees, nil
 }
