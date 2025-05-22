@@ -32,6 +32,37 @@ type InitiateVerificationResponse struct {
 	BatchID string `json:"batchId"`
 }
 
+// GetVerificationInfo godoc
+// @Summary 获取待确认的号码信息
+// @Description 用户点击邮件链接后，前端页面调用此接口获取该用户需确认的号码信息
+// @Tags Verification
+// @Produce json
+// @Param token query string true "验证令牌"
+// @Success 200 {object} utils.SuccessResponse{data=services.VerificationInfoResponse} "成功响应，包含员工姓名、令牌有效期、待验证的号码列表"
+// @Failure 403 {object} utils.APIErrorResponse "令牌无效或已过期"
+// @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
+// @Router /verification/info [get]
+func (h *VerificationHandler) GetVerificationInfo(c *gin.Context) {
+	token := c.Query("token")
+	if token == "" {
+		utils.RespondAPIError(c, http.StatusBadRequest, "请求参数无效", "缺少token参数")
+		return
+	}
+
+	info, err := h.verificationService.GetVerificationInfo(c.Request.Context(), token)
+	if err != nil {
+		switch err {
+		case services.ErrTokenNotFound, services.ErrTokenExpired, services.ErrTokenUsed:
+			utils.RespondAPIError(c, http.StatusForbidden, "无效或已过期的链接。", err.Error())
+		default:
+			utils.RespondInternalServerError(c, "获取验证信息失败", err.Error())
+		}
+		return
+	}
+
+	utils.RespondSuccess(c, http.StatusOK, info, "成功获取待确认号码信息")
+}
+
 // GetBatchStatusResponse 定义了获取批处理任务状态 API 的响应体 (直接使用 models.VerificationBatchTask 即可)
 // type GetBatchStatusResponse struct {
 // 	 models.VerificationBatchTask
@@ -90,7 +121,7 @@ func (h *VerificationHandler) InitiateVerification(c *gin.Context) {
 
 // GetVerificationBatchStatus godoc
 // @Summary 获取号码确认批处理任务的状态
-// @Description 根据批处理ID查询任务的当前状态、进度和错误详情。
+// @Description 获取指定号码确认批处理任务的当前状态、整体进度（包括已处理员工数、令牌生成情况、邮件发送统计：尝试数、成功数、失败数）以及详细的错误报告（例如邮件发送失败的原因）。
 // @Tags Verification
 // @Produce json
 // @Param batchId path string true "批处理任务ID"

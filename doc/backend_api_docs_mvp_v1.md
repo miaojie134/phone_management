@@ -338,7 +338,7 @@ POST /api/v1/verification/initiate
 - `500 Internal Server Error`: 服务器内部错误 (如创建批处理任务失败)。
 
 GET /api/v1/verification/batch/{batchId}/status
-描述: 获取指定批处理任务的当前状态、进度和错误详情。
+描述: 获取指定号码确认批处理任务的当前状态、整体进度（包括已处理员工数、令牌生成情况、邮件发送统计：尝试数、成功数、失败数）以及详细的错误报告（例如邮件发送失败的原因）。
 路径参数: \* `batchId` (string, required): 批处理任务的唯一 ID。
 成功响应 (200 OK):
 

@@ -18,6 +18,23 @@ import (
 // 定义一些服务层特定的错误，如果需要的话
 var ErrEmailDispatchFailed = errors.New("邮件发送失败")
 var ErrBatchTaskNotFound = errors.New("批处理任务未找到")
+var ErrTokenNotFound = errors.New("验证令牌未找到")
+var ErrTokenExpired = errors.New("验证令牌已过期")
+var ErrTokenUsed = errors.New("验证令牌已使用")
+
+// 号码确认信息结构
+type VerificationInfoResponse struct {
+	EmployeeName    string           `json:"employeeName"`
+	TokenValidUntil time.Time        `json:"tokenValidUntil"`
+	NumbersToVerify []NumberToVerify `json:"numbersToVerify"`
+}
+
+// 待确认的号码信息
+type NumberToVerify struct {
+	MobileNumberId        uint   `json:"mobileNumberId"`
+	PhoneNumber           string `json:"phoneNumber"`
+	CurrentStatusInSystem string `json:"currentStatusInSystem"`
+}
 
 // VerificationService 定义了验证服务的接口
 type VerificationService interface {
@@ -25,6 +42,8 @@ type VerificationService interface {
 	InitiateVerificationProcess(ctx context.Context, scopeType models.VerificationScopeType, scopeValues []string, durationDays int) (batchID string, err error)
 	// GetVerificationBatchStatus 获取指定批处理任务的当前状态和统计信息
 	GetVerificationBatchStatus(ctx context.Context, batchID string) (*models.VerificationBatchTask, error)
+	// GetVerificationInfo 获取待确认的号码信息
+	GetVerificationInfo(ctx context.Context, token string) (*VerificationInfoResponse, error)
 	// ProcessVerificationBatch (内部方法，可不由接口暴露，或仅为测试暴露)
 	// processVerificationBatch(batchID string) // 改为非导出，由 InitiateVerificationProcess 内部 goroutine 调用
 }
@@ -34,17 +53,74 @@ type verificationService struct {
 	employeeRepo          repositories.EmployeeRepository
 	verificationTokenRepo repositories.VerificationTokenRepository
 	batchTaskRepo         repositories.VerificationBatchTaskRepository // 新增批处理任务仓库
+	mobileNumberRepo      repositories.MobileNumberRepository          // 新增手机号码仓库
 	appConfig             *configs.Configuration
 }
 
 // NewVerificationService 构造函数现已注入 appConfig
-func NewVerificationService(employeeRepo repositories.EmployeeRepository, verificationTokenRepo repositories.VerificationTokenRepository, batchTaskRepo repositories.VerificationBatchTaskRepository) VerificationService {
+func NewVerificationService(employeeRepo repositories.EmployeeRepository, verificationTokenRepo repositories.VerificationTokenRepository, batchTaskRepo repositories.VerificationBatchTaskRepository, mobileNumberRepo repositories.MobileNumberRepository) VerificationService {
 	return &verificationService{
 		employeeRepo:          employeeRepo,
 		verificationTokenRepo: verificationTokenRepo,
 		batchTaskRepo:         batchTaskRepo,
+		mobileNumberRepo:      mobileNumberRepo,
 		appConfig:             &configs.AppConfig,
 	}
+}
+
+// GetVerificationInfo 获取待确认的号码信息
+func (s *verificationService) GetVerificationInfo(ctx context.Context, token string) (*VerificationInfoResponse, error) {
+	// 1. 验证token的有效性
+	verificationToken, err := s.verificationTokenRepo.FindByToken(ctx, token)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrTokenNotFound
+		}
+		return nil, fmt.Errorf("查询验证令牌失败: %w", err)
+	}
+
+	// 2. 检查token状态
+	if verificationToken.Status != models.VerificationTokenStatusPending {
+		if verificationToken.Status == models.VerificationTokenStatusUsed {
+			return nil, ErrTokenUsed
+		}
+		return nil, ErrTokenExpired
+	}
+
+	// 3. 检查token是否过期
+	if time.Now().After(verificationToken.ExpiresAt) {
+		return nil, ErrTokenExpired
+	}
+
+	// 4. 获取员工信息
+	employee, err := s.employeeRepo.GetEmployeeByEmployeeID(verificationToken.EmployeeID)
+	if err != nil {
+		return nil, fmt.Errorf("查询员工信息失败: %w", err)
+	}
+
+	// 5. 获取员工名下的号码信息（状态为"在用"或"闲置"的号码）
+	numbers, err := s.mobileNumberRepo.FindAssignedToEmployee(ctx, verificationToken.EmployeeID)
+	if err != nil {
+		return nil, fmt.Errorf("查询员工名下号码失败: %w", err)
+	}
+
+	// 6. 构建响应
+	numbersToVerify := make([]NumberToVerify, 0, len(numbers))
+	for _, number := range numbers {
+		if number.Status == string(models.StatusInUse) || number.Status == string(models.StatusIdle) {
+			numbersToVerify = append(numbersToVerify, NumberToVerify{
+				MobileNumberId:        number.ID,
+				PhoneNumber:           number.PhoneNumber,
+				CurrentStatusInSystem: number.Status,
+			})
+		}
+	}
+
+	return &VerificationInfoResponse{
+		EmployeeName:    employee.FullName,
+		TokenValidUntil: verificationToken.ExpiresAt,
+		NumbersToVerify: numbersToVerify,
+	}, nil
 }
 
 // GetVerificationBatchStatus 获取批处理任务的状态

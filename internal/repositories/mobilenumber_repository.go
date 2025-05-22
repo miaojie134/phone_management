@@ -1,6 +1,7 @@
 package repositories
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"time"
@@ -34,6 +35,8 @@ type MobileNumberRepository interface {
 	// AssignMobileNumber 的第二个参数 employeeBusinessID 应该是 string (业务工号)
 	AssignMobileNumber(numberID uint, employeeBusinessID string, assignmentDate time.Time) (*models.MobileNumber, error)
 	UnassignMobileNumber(numberID uint, reclaimDate time.Time) (*models.MobileNumber, error)
+	// FindAssignedToEmployee 查询分配给特定员工的手机号码
+	FindAssignedToEmployee(ctx context.Context, employeeID string) ([]models.MobileNumber, error)
 }
 
 // gormMobileNumberRepository 是 MobileNumberRepository 的 GORM 实现
@@ -421,4 +424,14 @@ func (r *gormMobileNumberRepository) UnassignMobileNumber(numberID uint, reclaim
 		return nil, err
 	}
 	return &mobileNumber, nil
+}
+
+// FindAssignedToEmployee 查询分配给特定员工的手机号码
+func (r *gormMobileNumberRepository) FindAssignedToEmployee(ctx context.Context, employeeID string) ([]models.MobileNumber, error) {
+	var numbers []models.MobileNumber
+	err := r.db.WithContext(ctx).Where("current_employee_id = ?", employeeID).Find(&numbers).Error
+	if err != nil {
+		return nil, err
+	}
+	return numbers, nil
 }

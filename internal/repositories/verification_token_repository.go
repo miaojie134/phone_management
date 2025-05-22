@@ -10,6 +10,7 @@ import (
 // VerificationTokenRepository 定义了验证令牌仓库的接口
 type VerificationTokenRepository interface {
 	Create(ctx context.Context, token *models.VerificationToken) error
+	FindByToken(ctx context.Context, token string) (*models.VerificationToken, error)
 	// Future methods for managing tokens can be added here, e.g., FindByToken, UpdateStatus
 }
 
@@ -25,4 +26,14 @@ func NewGormVerificationTokenRepository(db *gorm.DB) VerificationTokenRepository
 // Create 在数据库中创建一个新的验证令牌记录
 func (r *gormVerificationTokenRepository) Create(ctx context.Context, token *models.VerificationToken) error {
 	return r.db.WithContext(ctx).Create(token).Error
+}
+
+// FindByToken 通过token查询验证令牌信息
+func (r *gormVerificationTokenRepository) FindByToken(ctx context.Context, token string) (*models.VerificationToken, error) {
+	var verificationToken models.VerificationToken
+	err := r.db.WithContext(ctx).Where("token = ?", token).First(&verificationToken).Error
+	if err != nil {
+		return nil, err
+	}
+	return &verificationToken, nil
 }
