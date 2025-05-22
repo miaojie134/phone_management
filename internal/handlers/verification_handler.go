@@ -252,3 +252,30 @@ func (h *VerificationHandler) SubmitVerificationResult(c *gin.Context) {
 
 	utils.RespondSuccess(c, http.StatusOK, nil, "您的反馈已成功提交，感谢您的配合！")
 }
+
+// GetVerificationAdminStatus godoc
+// @Summary 管理员查看号码确认流程的整体状态和结果
+// @Description 获取号码确认流程的统计摘要，包括未响应用户列表、用户报告的问题列表等
+// @Tags Verification
+// @Produce json
+// @Param employeeId query string false "按员工工号筛选"
+// @Param departmentName query string false "按部门名称筛选"
+// @Success 200 {object} utils.SuccessResponse{data=models.AdminVerificationStatusResponse} "成功响应，包含流程统计信息和详情列表"
+// @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
+// @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
+// @Security BearerAuth
+// @Router /verification/admin/status [get]
+func (h *VerificationHandler) GetVerificationAdminStatus(c *gin.Context) {
+	// 从查询参数中获取筛选条件
+	employeeID := c.Query("employeeId")
+	departmentName := c.Query("departmentName")
+
+	// 调用服务层获取状态信息
+	statusResponse, err := h.verificationService.GetAdminVerificationStatus(c.Request.Context(), employeeID, departmentName)
+	if err != nil {
+		utils.RespondInternalServerError(c, "获取号码确认状态失败", err.Error())
+		return
+	}
+
+	utils.RespondSuccess(c, http.StatusOK, statusResponse, "成功获取号码确认状态")
+}

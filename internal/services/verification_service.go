@@ -45,6 +45,8 @@ type VerificationService interface {
 	GetVerificationInfo(ctx context.Context, token string) (*models.VerificationInfo, error)
 	// SubmitVerificationResult 提交号码确认结果
 	SubmitVerificationResult(ctx context.Context, token string, request *models.VerificationSubmission) error
+	// GetAdminVerificationStatus 获取管理员视图的号码确认流程状态
+	GetAdminVerificationStatus(ctx context.Context, employeeID, departmentName string) (*models.AdminVerificationStatusResponse, error)
 	// ProcessVerificationBatch (内部方法，可不由接口暴露，或仅为测试暴露)
 	// processVerificationBatch(batchID string) // 改为非导出，由 InitiateVerificationProcess 内部 goroutine 调用
 }
@@ -489,4 +491,65 @@ func (s *verificationService) SubmitVerificationResult(ctx context.Context, toke
 
 	// 不再更新令牌状态为used，保持pending状态直到过期
 	return nil
+}
+
+// GetAdminVerificationStatus 获取管理员视图的号码确认流程状态
+func (s *verificationService) GetAdminVerificationStatus(ctx context.Context, employeeID, departmentName string) (*models.AdminVerificationStatusResponse, error) {
+	response := &models.AdminVerificationStatusResponse{}
+
+	// 1. 获取统计摘要
+	// 1.1 计算已发起的总令牌数
+	totalInitiated, err := s.verificationTokenRepo.CountByStatus(ctx, models.VerificationTokenStatusPending)
+	if err != nil {
+		return nil, fmt.Errorf("计算已发起的总令牌数失败: %w", err)
+	}
+
+	// 1.2 计算已响应的令牌数
+	responded, err := s.verificationTokenRepo.CountByStatus(ctx, "used") // 假设使用过的令牌状态为 "used"
+	if err != nil {
+		return nil, fmt.Errorf("计算已响应的令牌数失败: %w", err)
+	}
+
+	// 1.3 计算未响应的令牌数（状态为pending且未过期）
+	pendingResponse, err := s.verificationTokenRepo.CountActive(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("计算未响应的令牌数失败: %w", err)
+	}
+
+	// 1.4 计算用户报告的问题总数
+	issuesReportedCount, err := s.userReportedIssueRepo.CountReportedIssues(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("计算用户报告的问题总数失败: %w", err)
+	}
+
+	// 构建统计摘要
+	response.Summary = models.VerificationSummary{
+		TotalInitiated:      totalInitiated,
+		Responded:           responded,
+		PendingResponse:     pendingResponse,
+		IssuesReportedCount: issuesReportedCount,
+	}
+
+	// 2. 获取未响应用户列表
+	pendingUsers, err := s.verificationTokenRepo.FindPendingTokensWithEmployeeInfo(ctx, employeeID, departmentName)
+	if err != nil {
+		return nil, fmt.Errorf("获取未响应用户列表失败: %w", err)
+	}
+	response.PendingUsers = pendingUsers
+
+	// 3. 获取用户报告的问题列表
+	reportedIssues, err := s.userReportedIssueRepo.FindReportedIssuesWithDetails(ctx, employeeID, departmentName)
+	if err != nil {
+		return nil, fmt.Errorf("获取用户报告的问题列表失败: %w", err)
+	}
+	response.ReportedIssues = reportedIssues
+
+	// 4. 获取用户报告的未列出号码列表
+	unlistedNumbers, err := s.userReportedIssueRepo.FindUnlistedNumbersWithDetails(ctx, employeeID, departmentName)
+	if err != nil {
+		return nil, fmt.Errorf("获取用户报告的未列出号码列表失败: %w", err)
+	}
+	response.UnlistedNumbers = unlistedNumbers
+
+	return response, nil
 }

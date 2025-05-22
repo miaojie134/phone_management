@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"time"
 
 	"github.com/phone_management/internal/models"
 	"gorm.io/gorm"
@@ -12,6 +13,10 @@ type VerificationTokenRepository interface {
 	Create(ctx context.Context, token *models.VerificationToken) error
 	FindByToken(ctx context.Context, token string) (*models.VerificationToken, error)
 	UpdateStatus(ctx context.Context, token string, status models.VerificationTokenStatus) error
+	// 以下是管理员查看状态API所需的方法
+	CountByStatus(ctx context.Context, status models.VerificationTokenStatus) (int, error)
+	CountActive(ctx context.Context) (int, error) // 统计所有未过期的令牌数量
+	FindPendingTokensWithEmployeeInfo(ctx context.Context, employeeID, departmentName string) ([]models.PendingUserDetail, error)
 	// Future methods for managing tokens can be added here, e.g., FindByToken, UpdateStatus
 }
 
@@ -42,4 +47,63 @@ func (r *gormVerificationTokenRepository) FindByToken(ctx context.Context, token
 // UpdateStatus 更新验证令牌的状态
 func (r *gormVerificationTokenRepository) UpdateStatus(ctx context.Context, token string, status models.VerificationTokenStatus) error {
 	return r.db.WithContext(ctx).Model(&models.VerificationToken{}).Where("token = ?", token).Update("status", status).Error
+}
+
+// CountByStatus 统计特定状态的令牌数量
+func (r *gormVerificationTokenRepository) CountByStatus(ctx context.Context, status models.VerificationTokenStatus) (int, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&models.VerificationToken{}).Where("status = ?", status).Count(&count).Error
+	return int(count), err
+}
+
+// CountActive 统计所有未过期的令牌数量
+func (r *gormVerificationTokenRepository) CountActive(ctx context.Context) (int, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&models.VerificationToken{}).Where("expires_at > ? AND status = ?", time.Now(), models.VerificationTokenStatusPending).Count(&count).Error
+	return int(count), err
+}
+
+// FindPendingTokensWithEmployeeInfo 查询未响应的令牌及相关员工信息
+func (r *gormVerificationTokenRepository) FindPendingTokensWithEmployeeInfo(ctx context.Context, employeeID, departmentName string) ([]models.PendingUserDetail, error) {
+	var results []struct {
+		TokenID    uint      `gorm:"column:id"`
+		EmployeeID string    `gorm:"column:employee_id"`
+		ExpiresAt  time.Time `gorm:"column:expires_at"`
+		FullName   string    `gorm:"column:full_name"`
+		Email      *string   `gorm:"column:email"`
+		Department *string   `gorm:"column:department"`
+	}
+
+	query := r.db.WithContext(ctx).Table("verification_tokens vt").
+		Select("vt.id, vt.employee_id, vt.expires_at, e.full_name, e.email, e.department").
+		Joins("JOIN employees e ON vt.employee_id = e.employee_id").
+		Where("vt.status = ? AND vt.expires_at > ?", models.VerificationTokenStatusPending, time.Now())
+
+	// 应用过滤条件
+	if employeeID != "" {
+		query = query.Where("vt.employee_id = ?", employeeID)
+	}
+	if departmentName != "" {
+		query = query.Where("e.department = ?", departmentName)
+	}
+
+	err := query.Order("vt.expires_at asc").Scan(&results).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// 转换为 PendingUserDetail 结构体
+	pendingUsers := make([]models.PendingUserDetail, 0, len(results))
+	for _, r := range results {
+		expiresAt := r.ExpiresAt
+		pendingUsers = append(pendingUsers, models.PendingUserDetail{
+			EmployeeID: r.EmployeeID,
+			FullName:   r.FullName,
+			Email:      r.Email,
+			TokenID:    r.TokenID,
+			ExpiresAt:  &expiresAt,
+		})
+	}
+
+	return pendingUsers, nil
 }

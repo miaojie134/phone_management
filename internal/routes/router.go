@@ -123,6 +123,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			verificationGroup.POST("/initiate", verificationHandler.InitiateVerification)
 			// GET /api/v1/verification/batch/{batchId}/status
 			verificationGroup.GET("/batch/:batchId/status", verificationHandler.GetVerificationBatchStatus)
+			// GET /api/v1/verification/admin/status - 管理员查看确认状态
+			verificationGroup.GET("/admin/status", verificationHandler.GetVerificationAdminStatus)
 			// 其他 /verification 子路由可以在这里添加，例如 GET /info, POST /submit, GET /admin/status
 		}
 

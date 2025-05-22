@@ -404,11 +404,11 @@ POST /submit (无需 JWT 认证, 令牌本身即是认证)
 请求体:
 {
 "verifiedNumbers": [
-{ "mobileNumberId": "db_id_1", "action": "confirm_usage", "purpose": "办公用" }, // purpose 可选，用于更新/确认号码用途
-{ "mobileNumberId": "db_id_2", "action": "report_issue", "purpose": "个人使用", "userComment": "这个号码我已经不用了，给李四了" }
+{ "mobileNumberId": "db_id_1", "action": "confirm_usage", "purpose": "办公用" }, // purpose 必填，用于更新/确认号码用途
+{ "mobileNumberId": "db_id_2", "action": "report_issue", "purpose": "个人使用", "userComment": "这个号码我已经不用了，给李四了" } // purpose 必填
 ],
 "unlistedNumbersReported": [ // 用户新增上报的号码
-{ "phoneNumber": "13700137000", "userComment": "这个号码公司给的，我一直在用，但列表里没有" }
+{ "phoneNumber": "13700137000", "purpose": "临时项目", "userComment": "这个号码公司给的，我一直在用，但列表里没有" } // purpose 必填
 ]
 }
 

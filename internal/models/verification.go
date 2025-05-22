@@ -141,3 +141,42 @@ type ReportedUnlistedNumberInfo struct {
 	UserComment string    `json:"userComment,omitempty"`
 	ReportedAt  time.Time `json:"reportedAt"`
 }
+
+// 以下是 GET /api/v1/verification/admin/status API 的响应数据模型
+
+// AdminVerificationStatusResponse 表示管理员查看号码确认流程状态的响应结构
+type AdminVerificationStatusResponse struct {
+	Summary         VerificationSummary          `json:"summary"`                   // 统计摘要
+	PendingUsers    []PendingUserDetail          `json:"pendingUsers,omitempty"`    // 未响应用户列表
+	ReportedIssues  []ReportedIssueDetail        `json:"reportedIssues,omitempty"`  // 用户报告问题列表
+	UnlistedNumbers []ReportedUnlistedNumberInfo `json:"unlistedNumbers,omitempty"` // 用户报告的未列出号码列表
+}
+
+// VerificationSummary 表示号码确认流程的统计摘要
+type VerificationSummary struct {
+	TotalInitiated      int `json:"totalInitiated"`      // 已发起的总令牌数
+	Responded           int `json:"responded"`           // 已响应的令牌数
+	PendingResponse     int `json:"pendingResponse"`     // 未响应的令牌数
+	IssuesReportedCount int `json:"issuesReportedCount"` // 用户报告的问题总数
+}
+
+// PendingUserDetail 表示未响应确认的用户详情
+type PendingUserDetail struct {
+	EmployeeID string     `json:"employeeId"`          // 员工业务工号
+	FullName   string     `json:"fullName"`            // 员工姓名
+	Email      *string    `json:"email,omitempty"`     // 员工邮箱
+	TokenID    uint       `json:"tokenId,omitempty"`   // 令牌ID（可选，用于内部处理）
+	ExpiresAt  *time.Time `json:"expiresAt,omitempty"` // 令牌过期时间（可选）
+}
+
+// ReportedIssueDetail 表示用户报告的号码问题详情
+type ReportedIssueDetail struct {
+	IssueID           uint      `json:"issueId,omitempty"`           // 问题ID（可选，用于内部处理）
+	PhoneNumber       string    `json:"phoneNumber"`                 // 手机号码
+	ReportedBy        string    `json:"reportedBy"`                  // 报告人姓名
+	Comment           string    `json:"comment"`                     // 用户备注
+	Purpose           *string   `json:"purpose,omitempty"`           // 报告的用途
+	OriginalStatus    string    `json:"originalStatus"`              // 号码原始状态
+	ReportedAt        time.Time `json:"reportedAt"`                  // 报告时间
+	AdminActionStatus string    `json:"adminActionStatus,omitempty"` // 管理员处理状态
+}
