@@ -105,6 +105,32 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			employeeRoutes.POST("/import", employeeHandler.BatchImportEmployees)
 		}
 
+		// --- Verification Routes ---
+		// Initialize verification-related repositories, service, and handler
+		// Assuming NewGormVerificationTokenRepository and NewGormUserReportedIssueRepository exist
+		// and NewVerificationService and NewVerificationHandler exist.
+		// employeeRepo and mobileNumberRepo are already initialized above.
+		verificationTokenRepo := repositories.NewGormVerificationTokenRepository(db)
+		userReportedIssueRepo := repositories.NewGormUserReportedIssueRepository(db)
+		// EmailService is commented out as per instructions if not ready.
+		verificationService := services.NewVerificationService(db, verificationTokenRepo, userReportedIssueRepo, employeeRepo, mobileNumberRepo /*, emailService */)
+		verificationHandler := handlers.NewVerificationHandler(verificationService)
+
+		verificationGroup := apiV1.Group("/verification")
+		{
+			// POST /api/v1/verification/initiate - Admin only
+			verificationGroup.POST("/initiate", jwtAuthMiddleware, verificationHandler.InitiateVerificationHandler)
+
+			// GET /api/v1/verification/info?token=<token> - Public, token is auth
+			verificationGroup.GET("/info", verificationHandler.GetVerificationInfoHandler) // No JWT middleware
+
+			// POST /api/v1/verification/submit?token=<token> - Public, token is auth
+			verificationGroup.POST("/submit", verificationHandler.SubmitVerificationHandler) // No JWT middleware
+
+			// GET /api/v1/verification/admin/status - Admin only
+			verificationGroup.GET("/admin/status", jwtAuthMiddleware, verificationHandler.GetAdminVerificationStatusHandler)
+		}
+
 	}
 
 	// Swagger 文档路由 (如果使用 swaggo)

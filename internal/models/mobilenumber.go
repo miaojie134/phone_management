@@ -28,6 +28,7 @@ type MobileNumber struct {
 	Vendor              string         `json:"vendor" binding:"max=100"`
 	Remarks             string         `json:"remarks" binding:"max=255"`
 	CancellationDate    *time.Time     `json:"cancellationDate" binding:"omitempty,time_format=2006-01-02"`
+	LastConfirmedAt     *time.Time     `json:"lastConfirmedAt,omitempty" gorm:"null"` // Timestamp of last user confirmation
 	CreatedAt           time.Time      `json:"createdAt" gorm:"autoCreateTime"`
 	UpdatedAt           time.Time      `json:"updatedAt" gorm:"autoUpdateTime"`
 	DeletedAt           gorm.DeletedAt `json:"deletedAt,omitempty" gorm:"index" swaggertype:"string" format:"date-time"`
@@ -52,6 +53,7 @@ type MobileNumberResponse struct {
 	Vendor              string               `json:"vendor,omitempty"`
 	Remarks             string               `json:"remarks,omitempty"`
 	CancellationDate    *time.Time           `json:"cancellationDate,omitempty"`
+	LastConfirmedAt     *time.Time           `json:"lastConfirmedAt,omitempty"`
 	CreatedAt           time.Time            `json:"createdAt"`
 	UpdatedAt           time.Time            `json:"updatedAt"`
 	UsageHistory        []NumberUsageHistory `json:"usageHistory,omitempty" gorm:"foreignKey:MobileNumberDbID"` // 号码使用历史
