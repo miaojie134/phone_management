@@ -69,7 +69,7 @@ type VerificationBatchTask struct {
 	RequestedDurationDays   int                         `json:"requestedDurationDays"`
 	CreatedAt               time.Time                   `json:"createdAt" gorm:"autoCreateTime"`
 	UpdatedAt               time.Time                   `json:"updatedAt" gorm:"autoUpdateTime"`
-	DeletedAt               gorm.DeletedAt              `json:"deletedAt,omitempty" gorm:"index"`
+	DeletedAt               gorm.DeletedAt              `json:"deletedAt,omitempty" swaggertype:"string" format:"date-time" gorm:"index"`
 }
 
 // TableName 指定 VerificationBatchTask 模型对应的数据库表名
@@ -189,7 +189,7 @@ type VerificationSubmissionLog struct {
 	UserComment         *string                `gorm:"column:user_comment;type:text"`
 	CreatedAt           time.Time              `gorm:"column:created_at;not null;autoCreateTime;index"`
 	UpdatedAt           time.Time              `gorm:"column:updated_at;not null;autoUpdateTime"`
-	DeletedAt           gorm.DeletedAt         `gorm:"index"`
+	DeletedAt           gorm.DeletedAt         `gorm:"index" swaggertype:"string" format:"date-time"`
 }
 
 // TableName 指定 VerificationSubmissionLog 模型对应的数据库表名

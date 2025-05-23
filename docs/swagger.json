@@ -24,7 +24,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handlers.LoginRequest"
+                            "$ref": "#/definitions/internal_handlers.LoginRequest"
                         }
                     }
                 ],
@@ -34,13 +34,13 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/handlers.LoginResponse"
+                                            "$ref": "#/definitions/internal_handlers.LoginResponse"
                                         }
                                     }
                                 }
@@ -50,19 +50,19 @@
                     "400": {
                         "description": "请求参数错误",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "无效的用户名或密码",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "无法生成Token",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     }
                 }
@@ -90,13 +90,13 @@
                     "200": {
                         "description": "成功登出",
                         "schema": {
-                            "$ref": "#/definitions/utils.SuccessResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
                         }
                     },
                     "400": {
                         "description": "错误的请求 (例如，上下文中缺少JTI或EXP)",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     }
                 }
@@ -167,13 +167,13 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/handlers.PagedEmployeesData"
+                                            "$ref": "#/definitions/internal_handlers.PagedEmployeesData"
                                         }
                                     }
                                 }
@@ -183,19 +183,19 @@
                     "400": {
                         "description": "请求参数错误",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "未认证或 Token 无效/过期",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     }
                 }
@@ -224,7 +224,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handlers.CreateEmployeePayload"
+                            "$ref": "#/definitions/internal_handlers.CreateEmployeePayload"
                         }
                     }
                 ],
@@ -234,13 +234,13 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/models.Employee"
+                                            "$ref": "#/definitions/github_com_phone_management_internal_models.Employee"
                                         }
                                     }
                                 }
@@ -250,25 +250,25 @@
                     "400": {
                         "description": "请求参数错误或数据校验失败",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "未认证或 Token 无效/过期",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "409": {
                         "description": "员工工号已存在",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     }
                 }
@@ -307,13 +307,13 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/handlers.BatchImportResponse"
+                                            "$ref": "#/definitions/internal_handlers.BatchImportResponse"
                                         }
                                     }
                                 }
@@ -323,19 +323,19 @@
                     "400": {
                         "description": "请求错误，例如文件未提供、文件格式错误或CSV表头不匹配",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "未认证或 Token 无效/过期",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     }
                 }
@@ -374,13 +374,13 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/models.EmployeeDetailResponse"
+                                            "$ref": "#/definitions/github_com_phone_management_internal_models.EmployeeDetailResponse"
                                         }
                                     }
                                 }
@@ -390,25 +390,25 @@
                     "400": {
                         "description": "无效的员工工号格式 (保留，以防未来有格式校验)",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "未认证或 Token 无效/过期",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "404": {
                         "description": "员工未找到",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     }
                 }
@@ -446,7 +446,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.UpdateEmployeePayload"
+                            "$ref": "#/definitions/github_com_phone_management_internal_models.UpdateEmployeePayload"
                         }
                     }
                 ],
@@ -456,13 +456,13 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/models.Employee"
+                                            "$ref": "#/definitions/github_com_phone_management_internal_models.Employee"
                                         }
                                     }
                                 }
@@ -472,25 +472,25 @@
                     "400": {
                         "description": "请求参数错误或数据校验失败",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "未认证或 Token 无效/过期",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "404": {
                         "description": "员工未找到",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     }
                 }
@@ -566,13 +566,13 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/handlers.PagedMobileNumbersData"
+                                            "$ref": "#/definitions/internal_handlers.PagedMobileNumbersData"
                                         }
                                     }
                                 }
@@ -582,13 +582,13 @@
                     "400": {
                         "description": "请求参数错误",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     }
                 }
@@ -617,7 +617,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handlers.CreateMobileNumberPayload"
+                            "$ref": "#/definitions/internal_handlers.CreateMobileNumberPayload"
                         }
                     }
                 ],
@@ -627,13 +627,13 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/models.MobileNumber"
+                                            "$ref": "#/definitions/github_com_phone_management_internal_models.MobileNumber"
                                         }
                                     }
                                 }
@@ -643,25 +643,25 @@
                     "400": {
                         "description": "请求参数错误或数据校验失败",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "未认证或 Token 无效/过期",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "409": {
                         "description": "手机号码已存在",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     }
                 }
@@ -700,13 +700,13 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/handlers.BatchImportMobileNumbersResponse"
+                                            "$ref": "#/definitions/internal_handlers.BatchImportMobileNumbersResponse"
                                         }
                                     }
                                 }
@@ -716,19 +716,19 @@
                     "400": {
                         "description": "请求错误，例如文件未提供、文件格式错误或CSV表头不匹配",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "未认证或 Token 无效/过期",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     }
                 }
@@ -767,13 +767,13 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/models.MobileNumberResponse"
+                                            "$ref": "#/definitions/github_com_phone_management_internal_models.MobileNumberResponse"
                                         }
                                     }
                                 }
@@ -783,19 +783,19 @@
                     "400": {
                         "description": "无效的手机号码格式 (保留，以防未来有格式校验)",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "404": {
                         "description": "号码未找到",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     }
                 }
@@ -828,12 +828,12 @@
                         "required": true
                     },
                     {
-                        "description": "分配信息 (员工业务工号和分配日期 YYYY-MM-DD)",
+                        "description": "分配信息 (员工业务工号和分配日期和用途 YYYY-MM-DD)",
                         "name": "assignPayload",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.MobileNumberAssignPayload"
+                            "$ref": "#/definitions/github_com_phone_management_internal_models.MobileNumberAssignPayload"
                         }
                     }
                 ],
@@ -843,13 +843,13 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/models.MobileNumber"
+                                            "$ref": "#/definitions/github_com_phone_management_internal_models.MobileNumber"
                                         }
                                     }
                                 }
@@ -859,31 +859,31 @@
                     "400": {
                         "description": "请求参数错误 / 无效的日期格式 / 无效的手机号码格式\" // 更新了描述",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "未认证或 Token 无效/过期",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "404": {
                         "description": "手机号码或目标员工工号未找到",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "409": {
                         "description": "操作冲突 (例如：号码非闲置，员工非在职)",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     }
                 }
@@ -920,7 +920,7 @@
                         "name": "unassignPayload",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/models.MobileNumberUnassignPayload"
+                            "$ref": "#/definitions/github_com_phone_management_internal_models.MobileNumberUnassignPayload"
                         }
                     }
                 ],
@@ -930,13 +930,13 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/models.MobileNumber"
+                                            "$ref": "#/definitions/github_com_phone_management_internal_models.MobileNumber"
                                         }
                                     }
                                 }
@@ -946,31 +946,31 @@
                     "400": {
                         "description": "请求参数错误 / 无效的日期格式 / 无效的手机号码格式\" // 添加了无效手机号格式的说明",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "未认证或 Token 无效/过期",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "404": {
                         "description": "手机号码未找到",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "409": {
                         "description": "操作冲突 (例如：号码非在用状态，或未找到有效的分配记录)",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     }
                 }
@@ -983,7 +983,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "更新指定手机号码的信息 (主要用于更新状态、供应商、备注)。当号码状态变更为\"已注销\"时，自动记录注销时间。",
+                "description": "更新指定手机号码的信息 (主要用于更新状态、用途、供应商、备注)。当号码状态变更为\"已注销\"时，自动记录注销时间。",
                 "consumes": [
                     "application/json"
                 ],
@@ -1008,7 +1008,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.MobileNumberUpdatePayload"
+                            "$ref": "#/definitions/github_com_phone_management_internal_models.MobileNumberUpdatePayload"
                         }
                     }
                 ],
@@ -1018,13 +1018,13 @@
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/models.MobileNumber"
+                                            "$ref": "#/definitions/github_com_phone_management_internal_models.MobileNumber"
                                         }
                                     }
                                 }
@@ -1034,25 +1034,348 @@
                     "400": {
                         "description": "请求参数错误或数据校验失败 / 没有提供任何更新字段 / 无效的手机号码格式\" // 更新了描述",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "未认证或 Token 无效/过期",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "404": {
                         "description": "号码未找到",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/utils.APIErrorResponse"
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/verification/admin/phone-status": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取基于手机号码维度的确认流程状态，包括统计摘要和详细信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Verification"
+                ],
+                "summary": "获取基于手机号码维度的确认流程状态",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "员工业务工号，用于筛选",
+                        "name": "employee_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "员工业务工号，用于筛选（兼容旧版本）",
+                        "name": "employeeId",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "部门名称，用于筛选",
+                        "name": "department",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "部门名称，用于筛选（兼容旧版本）",
+                        "name": "departmentName",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_phone_management_internal_models.PhoneVerificationStatusResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/verification/batch/{batchId}/status": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取指定号码确认批处理任务的当前状态、整体进度（包括已处理员工数、令牌生成情况、邮件发送统计：尝试数、成功数、失败数）以及详细的错误报告（例如邮件发送失败的原因）。",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Verification"
+                ],
+                "summary": "获取号码确认批处理任务的状态",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "批处理任务ID",
+                        "name": "batchId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应，包含批处理任务详情",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_phone_management_internal_models.VerificationBatchTask"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "无效的批处理ID格式",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "批处理任务未找到",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/verification/info": {
+            "get": {
+                "description": "用户点击邮件链接后，前端页面调用此接口获取该用户需确认的号码信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Verification"
+                ],
+                "summary": "获取待确认的号码信息",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "验证令牌",
+                        "name": "token",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应，包含员工姓名、令牌有效期、待验证的号码列表及其状态",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/github_com_phone_management_internal_models.VerificationInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "令牌无效或已过期",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/verification/initiate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "管理员调用此接口后，系统创建一个批处理任务来为目标员工生成 VerificationTokens 并发送邮件。接口立即返回批处理ID。",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Verification"
+                ],
+                "summary": "发起号码使用确认流程 (异步)",
+                "parameters": [
+                    {
+                        "description": "请求体",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handlers.InitiateVerificationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "请求已接受，批处理任务已创建",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_handlers.InitiateVerificationResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效或错误",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/verification/submit": {
+            "post": {
+                "description": "用户提交其号码确认结果，包括\"确认使用\"或\"报告问题\"的号码，以及可能上报的未在系统中列出但实际在使用的号码",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Verification"
+                ],
+                "summary": "提交号码确认结果",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "验证令牌 - 从邮件链接中获取的token参数",
+                        "name": "token",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "description": "请求体，包含 verifiedNumbers（必填，号码ID、动作类型、用途purpose、可选的备注）和 unlistedNumbersReported（可选，用户报告的未列出号码，需包含phoneNumber和必填的purpose）",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_phone_management_internal_models.VerificationSubmission"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "提交成功",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数无效",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "令牌无效或已过期",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
                         }
                     }
                 }
@@ -1060,234 +1383,33 @@
         }
     },
     "definitions": {
-        "handlers.BatchImportErrorDetail": {
+        "github_com_phone_management_internal_models.ConfirmedPhoneDetail": {
             "type": "object",
             "properties": {
-                "reason": {
-                    "description": "错误原因",
+                "confirmedAt": {
                     "type": "string"
                 },
-                "rowData": {
-                    "description": "可选，原始行数据",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "rowNumber": {
-                    "description": "CSV中的原始行号 (从1开始计数，包括表头)",
-                    "type": "integer"
-                }
-            }
-        },
-        "handlers.BatchImportMobileNumberErrorDetail": {
-            "type": "object",
-            "properties": {
-                "reason": {
-                    "description": "错误原因",
+                "confirmedBy": {
                     "type": "string"
                 },
-                "rowData": {
-                    "description": "可选，原始行数据",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "rowNumber": {
-                    "description": "CSV中的原始行号 (从1开始计数，包括表头)",
-                    "type": "integer"
-                }
-            }
-        },
-        "handlers.BatchImportMobileNumbersResponse": {
-            "type": "object",
-            "properties": {
-                "errorCount": {
-                    "type": "integer"
-                },
-                "errors": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/handlers.BatchImportMobileNumberErrorDetail"
-                    }
-                },
-                "message": {
+                "currentUser": {
                     "type": "string"
                 },
-                "successCount": {
-                    "type": "integer"
-                }
-            }
-        },
-        "handlers.BatchImportResponse": {
-            "type": "object",
-            "properties": {
-                "errorCount": {
-                    "type": "integer"
-                },
-                "errors": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/handlers.BatchImportErrorDetail"
-                    }
-                },
-                "message": {
-                    "type": "string"
-                },
-                "successCount": {
-                    "type": "integer"
-                }
-            }
-        },
-        "handlers.CreateEmployeePayload": {
-            "type": "object",
-            "required": [
-                "fullName"
-            ],
-            "properties": {
                 "department": {
-                    "type": "string",
-                    "maxLength": 255
+                    "type": "string"
                 },
-                "email": {
-                    "description": "可选，需要是合法的email格式，最大长度255",
-                    "type": "string",
-                    "maxLength": 255
-                },
-                "fullName": {
-                    "type": "string",
-                    "maxLength": 255
+                "id": {
+                    "type": "integer"
                 },
                 "phoneNumber": {
-                    "description": "手机号：可选，但如果提供，必须是11位数字",
+                    "type": "string"
+                },
+                "purpose": {
                     "type": "string"
                 }
             }
         },
-        "handlers.CreateMobileNumberPayload": {
-            "type": "object",
-            "required": [
-                "applicantEmployeeId",
-                "applicationDate",
-                "phoneNumber",
-                "status"
-            ],
-            "properties": {
-                "applicantEmployeeId": {
-                    "description": "改为 string，代表业务工号",
-                    "type": "string"
-                },
-                "applicationDate": {
-                    "type": "string"
-                },
-                "phoneNumber": {
-                    "type": "string",
-                    "maxLength": 50
-                },
-                "remarks": {
-                    "type": "string",
-                    "maxLength": 255
-                },
-                "status": {
-                    "type": "string",
-                    "enum": [
-                        "闲置",
-                        "在用",
-                        "待注销",
-                        "已注销",
-                        "待核实-办卡人离职"
-                    ]
-                },
-                "vendor": {
-                    "type": "string",
-                    "maxLength": 100
-                }
-            }
-        },
-        "handlers.LoginRequest": {
-            "type": "object",
-            "required": [
-                "password",
-                "username"
-            ],
-            "properties": {
-                "password": {
-                    "type": "string"
-                },
-                "username": {
-                    "type": "string"
-                }
-            }
-        },
-        "handlers.LoginResponse": {
-            "type": "object",
-            "properties": {
-                "token": {
-                    "type": "string"
-                },
-                "user": {
-                    "$ref": "#/definitions/handlers.UserInfo"
-                }
-            }
-        },
-        "handlers.PagedEmployeesData": {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.Employee"
-                    }
-                },
-                "pagination": {
-                    "$ref": "#/definitions/handlers.PaginationInfo"
-                }
-            }
-        },
-        "handlers.PagedMobileNumbersData": {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.MobileNumberResponse"
-                    }
-                },
-                "pagination": {
-                    "$ref": "#/definitions/handlers.PaginationInfo"
-                }
-            }
-        },
-        "handlers.PaginationInfo": {
-            "type": "object",
-            "properties": {
-                "currentPage": {
-                    "type": "integer"
-                },
-                "pageSize": {
-                    "type": "integer"
-                },
-                "totalItems": {
-                    "type": "integer"
-                },
-                "totalPages": {
-                    "type": "integer"
-                }
-            }
-        },
-        "handlers.UserInfo": {
-            "type": "object",
-            "properties": {
-                "role": {
-                    "type": "string"
-                },
-                "username": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.Employee": {
+        "github_com_phone_management_internal_models.Employee": {
             "type": "object",
             "properties": {
                 "createdAt": {
@@ -1337,7 +1459,7 @@
                 }
             }
         },
-        "models.EmployeeDetailResponse": {
+        "github_com_phone_management_internal_models.EmployeeDetailResponse": {
             "type": "object",
             "properties": {
                 "createdAt": {
@@ -1359,7 +1481,7 @@
                     "description": "作为办卡人的号码列表",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.MobileNumberBasicInfo"
+                        "$ref": "#/definitions/github_com_phone_management_internal_models.MobileNumberBasicInfo"
                     }
                 },
                 "hireDate": {
@@ -1378,12 +1500,12 @@
                     "description": "作为当前使用人的号码列表",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.MobileNumberBasicInfo"
+                        "$ref": "#/definitions/github_com_phone_management_internal_models.MobileNumberBasicInfo"
                     }
                 }
             }
         },
-        "models.MobileNumber": {
+        "github_com_phone_management_internal_models.MobileNumber": {
             "type": "object",
             "required": [
                 "applicantEmployeeId",
@@ -1416,7 +1538,15 @@
                 "id": {
                     "type": "integer"
                 },
+                "lastConfirmationDate": {
+                    "description": "最后确认日期",
+                    "type": "string"
+                },
                 "phoneNumber": {
+                    "type": "string"
+                },
+                "purpose": {
+                    "description": "号码用途，例如\"办公\"、\"客户联系\"等",
                     "type": "string"
                 },
                 "remarks": {
@@ -1430,7 +1560,8 @@
                         "在用",
                         "待注销",
                         "已注销",
-                        "待核实-办卡人离职"
+                        "待核实-办卡人离职",
+                        "待核实-用户报告"
                     ]
                 },
                 "updatedAt": {
@@ -1442,11 +1573,12 @@
                 }
             }
         },
-        "models.MobileNumberAssignPayload": {
+        "github_com_phone_management_internal_models.MobileNumberAssignPayload": {
             "type": "object",
             "required": [
                 "assignmentDate",
-                "employeeId"
+                "employeeId",
+                "purpose"
             ],
             "properties": {
                 "assignmentDate": {
@@ -1455,10 +1587,15 @@
                 "employeeId": {
                     "description": "员工业务工号",
                     "type": "string"
+                },
+                "purpose": {
+                    "description": "号码用途，必填",
+                    "type": "string",
+                    "maxLength": 255
                 }
             }
         },
-        "models.MobileNumberBasicInfo": {
+        "github_com_phone_management_internal_models.MobileNumberBasicInfo": {
             "type": "object",
             "properties": {
                 "id": {
@@ -1472,7 +1609,7 @@
                 }
             }
         },
-        "models.MobileNumberResponse": {
+        "github_com_phone_management_internal_models.MobileNumberResponse": {
             "type": "object",
             "properties": {
                 "applicantEmployeeId": {
@@ -1510,6 +1647,10 @@
                 "phoneNumber": {
                     "type": "string"
                 },
+                "purpose": {
+                    "description": "号码用途",
+                    "type": "string"
+                },
                 "remarks": {
                     "type": "string"
                 },
@@ -1523,7 +1664,7 @@
                     "description": "号码使用历史",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.NumberUsageHistory"
+                        "$ref": "#/definitions/github_com_phone_management_internal_models.NumberUsageHistory"
                     }
                 },
                 "vendor": {
@@ -1531,7 +1672,7 @@
                 }
             }
         },
-        "models.MobileNumberUnassignPayload": {
+        "github_com_phone_management_internal_models.MobileNumberUnassignPayload": {
             "type": "object",
             "properties": {
                 "reclaimDate": {
@@ -1539,9 +1680,13 @@
                 }
             }
         },
-        "models.MobileNumberUpdatePayload": {
+        "github_com_phone_management_internal_models.MobileNumberUpdatePayload": {
             "type": "object",
             "properties": {
+                "purpose": {
+                    "type": "string",
+                    "maxLength": 255
+                },
                 "remarks": {
                     "type": "string",
                     "maxLength": 255
@@ -1553,7 +1698,8 @@
                         "在用",
                         "待注销",
                         "已注销",
-                        "待核实-办卡人离职"
+                        "待核实-办卡人离职",
+                        "待核实-用户报告"
                     ]
                 },
                 "vendor": {
@@ -1562,7 +1708,7 @@
                 }
             }
         },
-        "models.NumberUsageHistory": {
+        "github_com_phone_management_internal_models.NumberUsageHistory": {
             "type": "object",
             "properties": {
                 "createdAt": {
@@ -1596,7 +1742,147 @@
                 }
             }
         },
-        "models.UpdateEmployeePayload": {
+        "github_com_phone_management_internal_models.PendingUserDetail": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "employeeId": {
+                    "type": "string"
+                },
+                "expiresAt": {
+                    "type": "string"
+                },
+                "fullName": {
+                    "type": "string"
+                },
+                "tokenId": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_phone_management_internal_models.PhoneVerificationStatusResponse": {
+            "type": "object",
+            "properties": {
+                "confirmedPhones": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_phone_management_internal_models.ConfirmedPhoneDetail"
+                    }
+                },
+                "pendingUsers": {
+                    "description": "Reuses PendingUserDetail",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_phone_management_internal_models.PendingUserDetail"
+                    }
+                },
+                "reportedIssues": {
+                    "description": "Reuses ReportedIssueDetail",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_phone_management_internal_models.ReportedIssueDetail"
+                    }
+                },
+                "summary": {
+                    "$ref": "#/definitions/github_com_phone_management_internal_models.PhoneVerificationSummary"
+                },
+                "unlistedNumbers": {
+                    "description": "Reuses ReportedUnlistedNumberInfo",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_phone_management_internal_models.ReportedUnlistedNumberInfo"
+                    }
+                }
+            }
+        },
+        "github_com_phone_management_internal_models.PhoneVerificationSummary": {
+            "type": "object",
+            "properties": {
+                "confirmedPhonesCount": {
+                    "type": "integer"
+                },
+                "newlyReportedPhonesCount": {
+                    "type": "integer"
+                },
+                "pendingPhonesCount": {
+                    "type": "integer"
+                },
+                "reportedIssuesCount": {
+                    "type": "integer"
+                },
+                "totalPhonesCount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "github_com_phone_management_internal_models.ReportedIssueDetail": {
+            "type": "object",
+            "properties": {
+                "adminActionStatus": {
+                    "type": "string"
+                },
+                "comment": {
+                    "type": "string"
+                },
+                "issueId": {
+                    "type": "integer"
+                },
+                "originalStatus": {
+                    "type": "string"
+                },
+                "phoneNumber": {
+                    "type": "string"
+                },
+                "purpose": {
+                    "type": "string"
+                },
+                "reportedAt": {
+                    "type": "string"
+                },
+                "reportedBy": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_phone_management_internal_models.ReportedUnlistedNumberInfo": {
+            "type": "object",
+            "properties": {
+                "phoneNumber": {
+                    "type": "string"
+                },
+                "purpose": {
+                    "type": "string"
+                },
+                "reportedAt": {
+                    "type": "string"
+                },
+                "userComment": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_phone_management_internal_models.UnlistedNumber": {
+            "type": "object",
+            "required": [
+                "phoneNumber",
+                "purpose"
+            ],
+            "properties": {
+                "phoneNumber": {
+                    "type": "string"
+                },
+                "purpose": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "userComment": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_phone_management_internal_models.UpdateEmployeePayload": {
             "type": "object",
             "properties": {
                 "department": {
@@ -1618,7 +1904,176 @@
                 }
             }
         },
-        "utils.APIErrorResponse": {
+        "github_com_phone_management_internal_models.VerificationBatchTask": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "deletedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "emailsAttemptedCount": {
+                    "type": "integer"
+                },
+                "emailsFailedCount": {
+                    "type": "integer"
+                },
+                "emailsSucceededCount": {
+                    "type": "integer"
+                },
+                "errorSummary": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "requestedDurationDays": {
+                    "type": "integer"
+                },
+                "requestedScopeType": {
+                    "$ref": "#/definitions/github_com_phone_management_internal_models.VerificationScopeType"
+                },
+                "requestedScopeValues": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/github_com_phone_management_internal_models.VerificationBatchTaskStatus"
+                },
+                "tokensGeneratedCount": {
+                    "type": "integer"
+                },
+                "totalEmployeesToProcess": {
+                    "type": "integer"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_phone_management_internal_models.VerificationBatchTaskStatus": {
+            "type": "string",
+            "enum": [
+                "Pending",
+                "InProgress",
+                "Completed",
+                "CompletedWithErrors",
+                "Failed"
+            ],
+            "x-enum-varnames": [
+                "BatchTaskStatusPending",
+                "BatchTaskStatusInProgress",
+                "BatchTaskStatusCompleted",
+                "BatchTaskStatusCompletedWithErrors",
+                "BatchTaskStatusFailed"
+            ]
+        },
+        "github_com_phone_management_internal_models.VerificationInfo": {
+            "type": "object",
+            "properties": {
+                "employeeId": {
+                    "type": "string"
+                },
+                "employeeName": {
+                    "type": "string"
+                },
+                "expiresAt": {
+                    "type": "string"
+                },
+                "phoneNumbers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_phone_management_internal_models.VerificationPhoneNumber"
+                    }
+                },
+                "previouslyReportedUnlisted": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_phone_management_internal_models.ReportedUnlistedNumberInfo"
+                    }
+                }
+            }
+        },
+        "github_com_phone_management_internal_models.VerificationPhoneNumber": {
+            "type": "object",
+            "properties": {
+                "department": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "phoneNumber": {
+                    "type": "string"
+                },
+                "purpose": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "userComment": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_phone_management_internal_models.VerificationScopeType": {
+            "type": "string",
+            "enum": [
+                "all_users",
+                "department",
+                "employee_ids"
+            ],
+            "x-enum-varnames": [
+                "VerificationScopeAllUsers",
+                "VerificationScopeDepartment",
+                "VerificationScopeEmployeeIDs"
+            ]
+        },
+        "github_com_phone_management_internal_models.VerificationSubmission": {
+            "type": "object",
+            "properties": {
+                "unlistedNumbersReported": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_phone_management_internal_models.UnlistedNumber"
+                    }
+                },
+                "verifiedNumbers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_phone_management_internal_models.VerifiedNumber"
+                    }
+                }
+            }
+        },
+        "github_com_phone_management_internal_models.VerifiedNumber": {
+            "type": "object",
+            "required": [
+                "action",
+                "mobileNumberId"
+            ],
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": [
+                        "confirm_usage",
+                        "report_issue"
+                    ]
+                },
+                "mobileNumberId": {
+                    "type": "integer"
+                },
+                "purpose": {
+                    "type": "string"
+                },
+                "userComment": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_phone_management_pkg_utils.APIErrorResponse": {
             "type": "object",
             "properties": {
                 "details": {},
@@ -1627,7 +2082,7 @@
                 }
             }
         },
-        "utils.SuccessResponse": {
+        "github_com_phone_management_pkg_utils.SuccessResponse": {
             "type": "object",
             "properties": {
                 "data": {
@@ -1639,6 +2094,274 @@
                 },
                 "status": {
                     "description": "例如 \"success\"",
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.BatchImportErrorDetail": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "description": "错误原因",
+                    "type": "string"
+                },
+                "rowData": {
+                    "description": "可选，原始行数据",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "rowNumber": {
+                    "description": "CSV中的原始行号 (从1开始计数，包括表头)",
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_handlers.BatchImportMobileNumberErrorDetail": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "description": "错误原因",
+                    "type": "string"
+                },
+                "rowData": {
+                    "description": "可选，原始行数据",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "rowNumber": {
+                    "description": "CSV中的原始行号 (从1开始计数，包括表头)",
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_handlers.BatchImportMobileNumbersResponse": {
+            "type": "object",
+            "properties": {
+                "errorCount": {
+                    "type": "integer"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_handlers.BatchImportMobileNumberErrorDetail"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "successCount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_handlers.BatchImportResponse": {
+            "type": "object",
+            "properties": {
+                "errorCount": {
+                    "type": "integer"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/internal_handlers.BatchImportErrorDetail"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "successCount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_handlers.CreateEmployeePayload": {
+            "type": "object",
+            "required": [
+                "fullName"
+            ],
+            "properties": {
+                "department": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "email": {
+                    "description": "可选，需要是合法的email格式，最大长度255",
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "fullName": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "phoneNumber": {
+                    "description": "手机号：可选，但如果提供，必须是11位数字",
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.CreateMobileNumberPayload": {
+            "type": "object",
+            "required": [
+                "applicantEmployeeId",
+                "applicationDate",
+                "phoneNumber",
+                "status"
+            ],
+            "properties": {
+                "applicantEmployeeId": {
+                    "description": "改为 string，代表业务工号",
+                    "type": "string"
+                },
+                "applicationDate": {
+                    "type": "string"
+                },
+                "phoneNumber": {
+                    "type": "string",
+                    "maxLength": 50
+                },
+                "purpose": {
+                    "description": "号码用途，可选",
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "remarks": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "闲置",
+                        "在用",
+                        "待注销",
+                        "已注销",
+                        "待核实-办卡人离职"
+                    ]
+                },
+                "vendor": {
+                    "type": "string",
+                    "maxLength": 100
+                }
+            }
+        },
+        "internal_handlers.InitiateVerificationRequest": {
+            "type": "object",
+            "required": [
+                "durationDays",
+                "scope"
+            ],
+            "properties": {
+                "durationDays": {
+                    "type": "integer",
+                    "maximum": 30,
+                    "minimum": 1
+                },
+                "scope": {
+                    "type": "string",
+                    "enum": [
+                        "all_users",
+                        "department",
+                        "employee_ids"
+                    ]
+                },
+                "scopeValues": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "internal_handlers.InitiateVerificationResponse": {
+            "type": "object",
+            "properties": {
+                "batchId": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.LoginRequest": {
+            "type": "object",
+            "required": [
+                "password",
+                "username"
+            ],
+            "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handlers.LoginResponse": {
+            "type": "object",
+            "properties": {
+                "token": {
+                    "type": "string"
+                },
+                "user": {
+                    "$ref": "#/definitions/internal_handlers.UserInfo"
+                }
+            }
+        },
+        "internal_handlers.PagedEmployeesData": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_phone_management_internal_models.Employee"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/internal_handlers.PaginationInfo"
+                }
+            }
+        },
+        "internal_handlers.PagedMobileNumbersData": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/github_com_phone_management_internal_models.MobileNumberResponse"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/internal_handlers.PaginationInfo"
+                }
+            }
+        },
+        "internal_handlers.PaginationInfo": {
+            "type": "object",
+            "properties": {
+                "currentPage": {
+                    "type": "integer"
+                },
+                "pageSize": {
+                    "type": "integer"
+                },
+                "totalItems": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "internal_handlers.UserInfo": {
+            "type": "object",
+            "properties": {
+                "role": {
+                    "type": "string"
+                },
+                "username": {
                     "type": "string"
                 }
             }

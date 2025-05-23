@@ -56,3 +56,6 @@
 
 代理环境变量配置
 export https_proxy="http://127.0.0.1:12334"
+
+更新 swagger 文档
+$(go env GOPATH)/bin/swag init -g cmd/server/main.go
