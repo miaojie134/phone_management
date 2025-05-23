@@ -122,8 +122,9 @@ type VerificationPhoneNumber struct {
 	ID          uint    `json:"id"`
 	PhoneNumber string  `json:"phoneNumber"`
 	Department  string  `json:"department"`
-	Purpose     *string `json:"purpose,omitempty"` // 号码用途
-	Status      string  `json:"status"`            // pending, confirmed, reported
+	Purpose     *string `json:"purpose,omitempty"`     // 号码用途
+	Status      string  `json:"status"`                // pending, confirmed, reported
+	UserComment *string `json:"userComment,omitempty"` // 用户报告问题时的评论
 }
 
 // VerificationInfo 表示验证信息的响应结构
@@ -139,25 +140,8 @@ type VerificationInfo struct {
 type ReportedUnlistedNumberInfo struct {
 	PhoneNumber string    `json:"phoneNumber"`
 	UserComment string    `json:"userComment,omitempty"`
+	Purpose     *string   `json:"purpose,omitempty"` // 新增字段：用户报告该未列出号码时的用途
 	ReportedAt  time.Time `json:"reportedAt"`
-}
-
-// 以下是 GET /api/v1/verification/admin/status API 的响应数据模型
-
-// AdminVerificationStatusResponse 表示管理员查看号码确认流程状态的响应结构
-type AdminVerificationStatusResponse struct {
-	Summary         VerificationSummary          `json:"summary"`                   // 统计摘要
-	PendingUsers    []PendingUserDetail          `json:"pendingUsers,omitempty"`    // 未响应用户列表
-	ReportedIssues  []ReportedIssueDetail        `json:"reportedIssues,omitempty"`  // 用户报告问题列表
-	UnlistedNumbers []ReportedUnlistedNumberInfo `json:"unlistedNumbers,omitempty"` // 用户报告的未列出号码列表
-}
-
-// VerificationSummary 表示号码确认流程的统计摘要
-type VerificationSummary struct {
-	TotalInitiated      int `json:"totalInitiated"`      // 已发起的总令牌数
-	Responded           int `json:"responded"`           // 已响应的令牌数
-	PendingResponse     int `json:"pendingResponse"`     // 未响应的令牌数
-	IssuesReportedCount int `json:"issuesReportedCount"` // 用户报告的问题总数
 }
 
 // PendingUserDetail 表示未响应确认的用户详情

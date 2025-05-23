@@ -81,6 +81,7 @@ func InitDB() {
 		&models.VerificationToken{},
 		&models.UserReportedIssue{},
 		&models.VerificationBatchTask{},
+		&models.VerificationSubmissionLog{},
 	)
 	if err != nil {
 		log.Fatalf("Failed to auto migrate database tables: %v", err)

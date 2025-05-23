@@ -14,7 +14,8 @@ type UserReportedIssue struct {
 	MobileNumberDbId     *uint          `gorm:"null"`                  // Pointer to allow NULL values
 	ReportedPhoneNumber  *string        `gorm:"type:varchar(50);null"` // Pointer to allow NULL values
 	IssueType            string         `gorm:"type:varchar(50);not null"`
-	UserComment          *string        `gorm:"type:text;null"` // Pointer to allow NULL values
+	UserComment          *string        `gorm:"type:text;null"`         // Pointer to allow NULL values
+	Purpose              *string        `gorm:"type:varchar(255);null"` // 新增字段，用于存储报告未列出号码时的用途
 	AdminActionStatus    string         `gorm:"type:varchar(50);not null;default:'pending_review'"`
 	AdminRemarks         *string        `gorm:"type:text;null"` // Pointer to allow NULL values
 	CreatedAt            time.Time      `json:"createdAt" gorm:"column:created_at;not null;autoCreateTime"`

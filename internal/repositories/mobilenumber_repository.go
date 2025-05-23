@@ -33,7 +33,7 @@ type MobileNumberRepository interface {
 	//未来可以扩展其他方法，如 GetByPhoneNumber, Update, Delete 等
 	UpdateMobileNumber(id uint, updates map[string]interface{}) (*models.MobileNumber, error)
 	// AssignMobileNumber 的第二个参数 employeeBusinessID 应该是 string (业务工号)
-	AssignMobileNumber(numberID uint, employeeBusinessID string, assignmentDate time.Time) (*models.MobileNumber, error)
+	AssignMobileNumber(numberID uint, employeeBusinessID string, assignmentDate time.Time, purpose string) (*models.MobileNumber, error)
 	UnassignMobileNumber(numberID uint, reclaimDate time.Time) (*models.MobileNumber, error)
 	// FindAssignedToEmployee 查询分配给特定员工的手机号码
 	FindAssignedToEmployee(ctx context.Context, employeeID string) ([]models.MobileNumber, error)
@@ -327,7 +327,7 @@ func (r *gormMobileNumberRepository) UpdateMobileNumber(id uint, updates map[str
 }
 
 // AssignMobileNumber 将手机号码分配给员工 (employeeID 为业务工号)
-func (r *gormMobileNumberRepository) AssignMobileNumber(numberID uint, employeeBusinessID string, assignmentDate time.Time) (*models.MobileNumber, error) {
+func (r *gormMobileNumberRepository) AssignMobileNumber(numberID uint, employeeBusinessID string, assignmentDate time.Time, purpose string) (*models.MobileNumber, error) {
 	var mobileNumber models.MobileNumber
 	var employee models.Employee // 用于校验员工状态
 
@@ -357,6 +357,7 @@ func (r *gormMobileNumberRepository) AssignMobileNumber(numberID uint, employeeB
 
 		mobileNumber.CurrentEmployeeID = &employeeBusinessID // 直接存储业务工号
 		mobileNumber.Status = string(models.StatusInUse)
+		mobileNumber.Purpose = &purpose // 设置用途字段
 		if err := tx.Save(&mobileNumber).Error; err != nil {
 			return err
 		}

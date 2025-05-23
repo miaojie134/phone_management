@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -20,9 +21,17 @@ type UserReportedIssueRepository interface {
 	// FindUnlistedByTokenId 查找特定验证令牌ID对应的、类型为 unlisted_number 的报告问题记录
 	FindUnlistedByTokenId(ctx context.Context, tokenId uint) ([]models.UserReportedIssue, error)
 	// 以下是管理员查看状态API所需的方法
-	CountReportedIssues(ctx context.Context) (int, error) // 统计所有报告的问题总数
+	// CountReportedIssues(ctx context.Context) (int, error) // 统计所有报告的问题总数
 	FindReportedIssuesWithDetails(ctx context.Context, employeeID, departmentName string) ([]models.ReportedIssueDetail, error)
 	FindUnlistedNumbersWithDetails(ctx context.Context, employeeID, departmentName string) ([]models.ReportedUnlistedNumberInfo, error)
+	// FindLatestByMobileNumberIdAndTokenId 查找特定手机号码ID和验证令牌ID对应的最新的用户报告问题记录
+	FindLatestByMobileNumberIdAndTokenId(ctx context.Context, mobileNumberId uint, tokenId uint) (*models.UserReportedIssue, error)
+	// FindPendingByMobileNumberDbIdAndEmployeeId 查找指定 MobileNumberDbId 和 EmployeeId 的待处理用户报告问题记录
+	FindPendingByMobileNumberDbIdAndEmployeeId(ctx context.Context, mobileNumberDbId uint, employeeId string) (*models.UserReportedIssue, error)
+	// FindPendingByReportedPhoneNumberAndEmployeeId 查找指定 ReportedPhoneNumber 和 EmployeeId 的待处理用户报告问题记录
+	FindPendingByReportedPhoneNumberAndEmployeeId(ctx context.Context, phoneNumber string, employeeId string) (*models.UserReportedIssue, error)
+	// SaveReportedIssue 保存用户报告问题记录 (创建或更新)
+	SaveReportedIssue(ctx context.Context, issue *models.UserReportedIssue) error
 }
 
 type gormUserReportedIssueRepository struct {
@@ -76,13 +85,6 @@ func (r *gormUserReportedIssueRepository) FindUnlistedByTokenId(ctx context.Cont
 		Order("created_at desc"). // 按创建时间降序排列
 		Find(&issues).Error
 	return issues, err
-}
-
-// CountReportedIssues 统计所有报告的问题总数
-func (r *gormUserReportedIssueRepository) CountReportedIssues(ctx context.Context) (int, error) {
-	var count int64
-	err := r.db.WithContext(ctx).Model(&models.UserReportedIssue{}).Count(&count).Error
-	return int(count), err
 }
 
 // FindReportedIssuesWithDetails 查询用户报告的号码问题详情
@@ -205,4 +207,60 @@ func (r *gormUserReportedIssueRepository) FindUnlistedNumbersWithDetails(ctx con
 	}
 
 	return unlistedNumbers, nil
+}
+
+// FindLatestByMobileNumberIdAndTokenId 查找特定手机号码ID和验证令牌ID对应的最新的用户报告问题记录
+func (r *gormUserReportedIssueRepository) FindLatestByMobileNumberIdAndTokenId(ctx context.Context, mobileNumberId uint, tokenId uint) (*models.UserReportedIssue, error) {
+	var issue models.UserReportedIssue
+	err := r.db.WithContext(ctx).
+		Where("mobile_number_db_id = ? AND verification_token_id = ?", mobileNumberId, tokenId).
+		Order("created_at desc").
+		First(&issue).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil // 如果没有找到记录，返回nil, nil，而不是错误
+		}
+		return nil, err
+	}
+	return &issue, nil
+}
+
+// FindPendingByMobileNumberDbIdAndEmployeeId 查找指定 MobileNumberDbId 和 EmployeeId 的待处理用户报告问题记录
+func (r *gormUserReportedIssueRepository) FindPendingByMobileNumberDbIdAndEmployeeId(ctx context.Context, mobileNumberDbId uint, employeeId string) (*models.UserReportedIssue, error) {
+	var issue models.UserReportedIssue
+	err := r.db.WithContext(ctx).
+		Where("mobile_number_db_id = ? AND reported_by_employee_id = ? AND admin_action_status = ?", mobileNumberDbId, employeeId, "pending_review").
+		Order("created_at desc").
+		First(&issue).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil // 没有找到，不是错误
+		}
+		return nil, err
+	}
+	return &issue, nil
+}
+
+// FindPendingByReportedPhoneNumberAndEmployeeId 查找指定 ReportedPhoneNumber 和 EmployeeId 的待处理用户报告问题记录
+func (r *gormUserReportedIssueRepository) FindPendingByReportedPhoneNumberAndEmployeeId(ctx context.Context, phoneNumber string, employeeId string) (*models.UserReportedIssue, error) {
+	var issue models.UserReportedIssue
+	err := r.db.WithContext(ctx).
+		Where("reported_phone_number = ? AND reported_by_employee_id = ? AND admin_action_status = ?", phoneNumber, employeeId, "pending_review").
+		Order("created_at desc").
+		First(&issue).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil // 没有找到，不是错误
+		}
+		return nil, err
+	}
+	return &issue, nil
+}
+
+// SaveReportedIssue 保存用户报告问题记录 (GORM的Save会根据主键是否存在来创建或更新)
+func (r *gormUserReportedIssueRepository) SaveReportedIssue(ctx context.Context, issue *models.UserReportedIssue) error {
+	return r.db.WithContext(ctx).Save(issue).Error
 }

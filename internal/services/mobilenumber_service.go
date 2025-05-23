@@ -29,7 +29,7 @@ type MobileNumberService interface {
 	UpdateMobileNumberByPhoneNumber(phoneNumber string, payload models.MobileNumberUpdatePayload) (*models.MobileNumber, error)
 	// AssignMobileNumber 的 employeeBusinessID 参数是 string (业务工号)
 	// 第一个参数从 numberID uint 修改为 phoneNumber string
-	AssignMobileNumber(phoneNumber string, employeeBusinessID string, assignmentDate time.Time) (*models.MobileNumber, error)
+	AssignMobileNumber(phoneNumber string, employeeBusinessID string, assignmentDate time.Time, purpose string) (*models.MobileNumber, error)
 	// UnassignMobileNumber(numberID uint, reclaimDate time.Time) (*models.MobileNumber, error) // 旧方法
 	UnassignMobileNumberByPhoneNumber(phoneNumber string, reclaimDate time.Time) (*models.MobileNumber, error) // 新方法
 	ResolveApplicantNameToID(applicantName string) (string, error)                                             // 新增方法
@@ -137,7 +137,7 @@ func (s *mobileNumberService) UpdateMobileNumberByPhoneNumber(phoneNumber string
 // AssignMobileNumber 处理将手机号码分配给员工的业务逻辑
 // employeeBusinessID 是员工的业务工号 (string)
 // 第一个参数从 numberID uint 修改为 phoneNumber string
-func (s *mobileNumberService) AssignMobileNumber(phoneNumber string, employeeBusinessID string, assignmentDate time.Time) (*models.MobileNumber, error) {
+func (s *mobileNumberService) AssignMobileNumber(phoneNumber string, employeeBusinessID string, assignmentDate time.Time, purpose string) (*models.MobileNumber, error) {
 	// 0. 通过 phoneNumber 获取 MobileNumber 实体及其 ID
 	mobileNumber, err := s.repo.GetMobileNumberByPhoneNumber(phoneNumber)
 	if err != nil {
@@ -156,8 +156,8 @@ func (s *mobileNumberService) AssignMobileNumber(phoneNumber string, employeeBus
 		return nil, repositories.ErrEmployeeNotActive // 复用仓库层的错误，表示员工非在职
 	}
 
-	// 使用从 phoneNumber 查询到的 mobileNumber.ID 进行分配
-	assignedMobileNumber, err := s.repo.AssignMobileNumber(mobileNumber.ID, employeeBusinessID, assignmentDate)
+	// 使用从 phoneNumber 查询到的 mobileNumber.ID 进行分配，并传递用途
+	assignedMobileNumber, err := s.repo.AssignMobileNumber(mobileNumber.ID, employeeBusinessID, assignmentDate, purpose)
 	if err != nil {
 		if errors.Is(err, repositories.ErrRecordNotFound) {
 			// 此处的 ErrRecordNotFound 是针对 MobileNumber 的，由 repo.AssignMobileNumber 返回

@@ -109,7 +109,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 		verificationTokenRepo := repositories.NewGormVerificationTokenRepository(db)
 		verificationBatchTaskRepo := repositories.NewGormVerificationBatchTaskRepository(db)
 		userReportedIssueRepo := repositories.NewGormUserReportedIssueRepository(db)
-		verificationService := services.NewVerificationService(employeeRepo, verificationTokenRepo, verificationBatchTaskRepo, mobileNumberRepo, userReportedIssueRepo)
+		submissionLogRepo := repositories.NewGormVerificationSubmissionLogRepository(db)
+		verificationService := services.NewVerificationService(employeeRepo, verificationTokenRepo, verificationBatchTaskRepo, mobileNumberRepo, userReportedIssueRepo, submissionLogRepo, db)
 		verificationHandler := handlers.NewVerificationHandler(verificationService)
 
 		// 公开的验证接口，不需要JWT认证
@@ -123,8 +124,8 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			verificationGroup.POST("/initiate", verificationHandler.InitiateVerification)
 			// GET /api/v1/verification/batch/{batchId}/status
 			verificationGroup.GET("/batch/:batchId/status", verificationHandler.GetVerificationBatchStatus)
-			// GET /api/v1/verification/admin/status - 管理员查看确认状态
-			verificationGroup.GET("/admin/status", verificationHandler.GetVerificationAdminStatus)
+			// GET /api/v1/verification/admin/phone-status - 基于手机号维度的确认状态
+			verificationGroup.GET("/admin/phone-status", verificationHandler.GetPhoneVerificationStatus)
 			// 其他 /verification 子路由可以在这里添加，例如 GET /info, POST /submit, GET /admin/status
 		}
 

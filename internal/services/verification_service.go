@@ -45,8 +45,8 @@ type VerificationService interface {
 	GetVerificationInfo(ctx context.Context, token string) (*models.VerificationInfo, error)
 	// SubmitVerificationResult 提交号码确认结果
 	SubmitVerificationResult(ctx context.Context, token string, request *models.VerificationSubmission) error
-	// GetAdminVerificationStatus 获取管理员视图的号码确认流程状态
-	GetAdminVerificationStatus(ctx context.Context, employeeID, departmentName string) (*models.AdminVerificationStatusResponse, error)
+	// GetPhoneVerificationStatus 获取基于手机号码维度的管理员视图
+	GetPhoneVerificationStatus(ctx context.Context, employeeID, departmentName string) (*models.PhoneVerificationStatusResponse, error)
 	// ProcessVerificationBatch (内部方法，可不由接口暴露，或仅为测试暴露)
 	// processVerificationBatch(batchID string) // 改为非导出，由 InitiateVerificationProcess 内部 goroutine 调用
 }
@@ -55,21 +55,25 @@ type VerificationService interface {
 type verificationService struct {
 	employeeRepo          repositories.EmployeeRepository
 	verificationTokenRepo repositories.VerificationTokenRepository
-	batchTaskRepo         repositories.VerificationBatchTaskRepository // 新增批处理任务仓库
-	mobileNumberRepo      repositories.MobileNumberRepository          // 新增手机号码仓库
-	userReportedIssueRepo repositories.UserReportedIssueRepository     // 新增用户报告问题仓库
+	batchTaskRepo         repositories.VerificationBatchTaskRepository     // 新增批处理任务仓库
+	mobileNumberRepo      repositories.MobileNumberRepository              // 新增手机号码仓库
+	userReportedIssueRepo repositories.UserReportedIssueRepository         // 新增用户报告问题仓库
+	submissionLogRepo     repositories.VerificationSubmissionLogRepository // 新增验证提交日志仓库
 	appConfig             *configs.Configuration
+	db                    *gorm.DB
 }
 
 // NewVerificationService 构造函数现已注入 appConfig
-func NewVerificationService(employeeRepo repositories.EmployeeRepository, verificationTokenRepo repositories.VerificationTokenRepository, batchTaskRepo repositories.VerificationBatchTaskRepository, mobileNumberRepo repositories.MobileNumberRepository, userReportedIssueRepo repositories.UserReportedIssueRepository) VerificationService {
+func NewVerificationService(employeeRepo repositories.EmployeeRepository, verificationTokenRepo repositories.VerificationTokenRepository, batchTaskRepo repositories.VerificationBatchTaskRepository, mobileNumberRepo repositories.MobileNumberRepository, userReportedIssueRepo repositories.UserReportedIssueRepository, submissionLogRepo repositories.VerificationSubmissionLogRepository, db *gorm.DB) VerificationService {
 	return &verificationService{
 		employeeRepo:          employeeRepo,
 		verificationTokenRepo: verificationTokenRepo,
 		batchTaskRepo:         batchTaskRepo,
 		mobileNumberRepo:      mobileNumberRepo,
 		userReportedIssueRepo: userReportedIssueRepo,
+		submissionLogRepo:     submissionLogRepo,
 		appConfig:             &configs.AppConfig,
+		db:                    db,
 	}
 }
 
@@ -131,11 +135,20 @@ func (s *verificationService) GetVerificationInfo(ctx context.Context, token str
 	phoneNumbers := make([]models.VerificationPhoneNumber, 0, len(mobileNumbers))
 	for _, number := range mobileNumbers {
 		status := "pending"
+		var userComment *string
 
 		// 检查号码是否已被报告问题
 		for _, reportedId := range reportedIssueNumberIds {
 			if reportedId == number.ID {
 				status = "reported"
+				// 获取该号码最新的报告评论
+				latestIssue, reportErr := s.userReportedIssueRepo.FindLatestByMobileNumberIdAndTokenId(ctx, number.ID, verificationToken.ID)
+				if reportErr != nil {
+					// 如果获取评论失败，可以记录日志，但程序应继续
+					fmt.Printf("获取号码 %d (token %d) 的报告评论失败: %v\n", number.ID, verificationToken.ID, reportErr)
+				} else if latestIssue != nil {
+					userComment = latestIssue.UserComment
+				}
 				break
 			}
 		}
@@ -162,6 +175,7 @@ func (s *verificationService) GetVerificationInfo(ctx context.Context, token str
 			Department:  department,
 			Purpose:     number.Purpose,
 			Status:      status,
+			UserComment: userComment, // 填充用户评论
 		})
 	}
 
@@ -170,6 +184,7 @@ func (s *verificationService) GetVerificationInfo(ctx context.Context, token str
 	for _, reportedIssue := range previouslyReported {
 		info := models.ReportedUnlistedNumberInfo{
 			ReportedAt: reportedIssue.CreatedAt, // 使用报告问题记录的创建时间
+			Purpose:    reportedIssue.Purpose,   // 填充 Purpose 字段
 		}
 		if reportedIssue.ReportedPhoneNumber != nil {
 			info.PhoneNumber = *reportedIssue.ReportedPhoneNumber
@@ -410,8 +425,39 @@ func (s *verificationService) SubmitVerificationResult(ctx context.Context, toke
 		return ErrTokenExpired
 	}
 
+	// 收集需要创建的日志记录
+	var submissionLogs []*models.VerificationSubmissionLog
+
 	// 4. 处理verified numbers
 	for _, verifiedNumber := range request.VerifiedNumbers {
+		// 通过直接查询数据库获取手机号码信息
+		var phoneNumber string
+
+		// 使用数据库直接查询
+		if err := s.db.Model(&models.MobileNumber{}).
+			Where("id = ?", verifiedNumber.MobileNumberId).
+			Select("phone_number").
+			Scan(&phoneNumber).Error; err != nil {
+			return fmt.Errorf("获取手机号码信息失败: %w", err)
+		}
+
+		// 创建日志记录
+		actionType := models.ActionConfirmUsage
+		if verifiedNumber.Action == "report_issue" {
+			actionType = models.ActionReportIssue
+		}
+
+		submissionLog := &models.VerificationSubmissionLog{
+			EmployeeID:          verificationToken.EmployeeID,
+			VerificationTokenID: verificationToken.ID,
+			MobileNumberID:      &verifiedNumber.MobileNumberId,
+			PhoneNumber:         phoneNumber,
+			ActionType:          actionType,
+			Purpose:             verifiedNumber.Purpose,
+			UserComment:         &verifiedNumber.UserComment,
+		}
+		submissionLogs = append(submissionLogs, submissionLog)
+
 		switch verifiedNumber.Action {
 		case "confirm_usage":
 			if err := s.mobileNumberRepo.UpdateLastConfirmationDate(ctx, verifiedNumber.MobileNumberId); err != nil {
@@ -432,31 +478,34 @@ func (s *verificationService) SubmitVerificationResult(ctx context.Context, toke
 				return fmt.Errorf("标记号码为用户报告问题失败: %w", err)
 			}
 
-			// 创建用户报告问题记录
-			reportedIssue := &models.UserReportedIssue{
-				VerificationTokenId:  &verificationToken.ID,
-				ReportedByEmployeeID: verificationToken.EmployeeID,
-				MobileNumberDbId:     &verifiedNumber.MobileNumberId,
-				IssueType:            "number_issue",
-				UserComment:          &verifiedNumber.UserComment,
-				AdminActionStatus:    "pending_review",
+			// 检查是否存在由当前用户提交的、针对此号码的待处理报告
+			existingIssue, findErr := s.userReportedIssueRepo.FindPendingByMobileNumberDbIdAndEmployeeId(ctx, verifiedNumber.MobileNumberId, verificationToken.EmployeeID)
+			if findErr != nil {
+				return fmt.Errorf("查找现有报告失败: %w", findErr)
 			}
 
-			// 如果用户报告了号码用途问题，记录在用户报告中
-			if verifiedNumber.Purpose != nil {
-				// 这里我们需要修改 UserReportedIssue 模型，添加 ReportedPurpose 字段
-				// 暂时可以将用途信息添加到 UserComment 中
-				if verifiedNumber.UserComment == "" {
-					newComment := fmt.Sprintf("用途应为: %s", *verifiedNumber.Purpose)
-					reportedIssue.UserComment = &newComment
-				} else {
-					newComment := fmt.Sprintf("%s\n用途应为: %s", verifiedNumber.UserComment, *verifiedNumber.Purpose)
-					reportedIssue.UserComment = &newComment
+			var issueToSave *models.UserReportedIssue
+			if existingIssue != nil {
+				// 更新现有报告
+				existingIssue.UserComment = &verifiedNumber.UserComment
+				existingIssue.VerificationTokenId = &verificationToken.ID // 更新关联的token，以便追溯
+				// Purpose 字段在此处不设置，因为它主要用于未列出号码的报告
+				issueToSave = existingIssue
+			} else {
+				// 创建新报告
+				issueToSave = &models.UserReportedIssue{
+					VerificationTokenId:  &verificationToken.ID,
+					ReportedByEmployeeID: verificationToken.EmployeeID,
+					MobileNumberDbId:     &verifiedNumber.MobileNumberId,
+					IssueType:            "number_issue",
+					UserComment:          &verifiedNumber.UserComment,
+					// Purpose 字段在此处不设置
+					AdminActionStatus: "pending_review",
 				}
 			}
 
-			if err := s.userReportedIssueRepo.CreateReportedIssue(ctx, reportedIssue); err != nil {
-				return fmt.Errorf("创建用户报告问题记录失败: %w", err)
+			if err := s.userReportedIssueRepo.SaveReportedIssue(ctx, issueToSave); err != nil {
+				return fmt.Errorf("保存用户报告问题记录失败: %w", err)
 			}
 		default:
 			return fmt.Errorf("无效的操作类型: %s", verifiedNumber.Action)
@@ -465,27 +514,53 @@ func (s *verificationService) SubmitVerificationResult(ctx context.Context, toke
 
 	// 5. 处理unlisted numbers
 	for _, unlistedNumber := range request.UnlistedNumbersReported {
-		// 将 Purpose 信息附加到 UserComment
-		userCommentWithPurpose := unlistedNumber.UserComment
-		if unlistedNumber.Purpose != nil && *unlistedNumber.Purpose != "" {
-			if userCommentWithPurpose == "" {
-				userCommentWithPurpose = fmt.Sprintf("报告用途: %s", *unlistedNumber.Purpose)
-			} else {
-				userCommentWithPurpose = fmt.Sprintf("%s\n报告用途: %s", userCommentWithPurpose, *unlistedNumber.Purpose)
+		// 创建日志记录
+		submissionLog := &models.VerificationSubmissionLog{
+			EmployeeID:          verificationToken.EmployeeID,
+			VerificationTokenID: verificationToken.ID,
+			MobileNumberID:      nil, // 未列出的号码没有系统ID
+			PhoneNumber:         unlistedNumber.PhoneNumber,
+			ActionType:          models.ActionReportUnlisted,
+			Purpose:             unlistedNumber.Purpose,
+			UserComment:         &unlistedNumber.UserComment,
+		}
+		submissionLogs = append(submissionLogs, submissionLog)
+
+		// 检查是否存在由当前用户提交的、针对此未列出号码的待处理报告
+		existingUnlistedIssue, findUnlistedErr := s.userReportedIssueRepo.FindPendingByReportedPhoneNumberAndEmployeeId(ctx, unlistedNumber.PhoneNumber, verificationToken.EmployeeID)
+		if findUnlistedErr != nil {
+			return fmt.Errorf("查找现有未列出号码报告失败: %w", findUnlistedErr)
+		}
+
+		var unlistedIssueToSave *models.UserReportedIssue
+		if existingUnlistedIssue != nil {
+			// 更新现有未列出号码报告
+			existingUnlistedIssue.UserComment = &unlistedNumber.UserComment
+			existingUnlistedIssue.Purpose = unlistedNumber.Purpose // 更新 Purpose
+			existingUnlistedIssue.VerificationTokenId = &verificationToken.ID
+			unlistedIssueToSave = existingUnlistedIssue
+		} else {
+			// 创建新的未列出号码报告
+			unlistedIssueToSave = &models.UserReportedIssue{
+				VerificationTokenId:  &verificationToken.ID,
+				ReportedByEmployeeID: verificationToken.EmployeeID,
+				ReportedPhoneNumber:  &unlistedNumber.PhoneNumber,
+				IssueType:            "unlisted_number",
+				UserComment:          &unlistedNumber.UserComment,
+				Purpose:              unlistedNumber.Purpose, // 保存 Purpose
+				AdminActionStatus:    "pending_review",
 			}
 		}
 
-		reportedIssue := &models.UserReportedIssue{
-			VerificationTokenId:  &verificationToken.ID,
-			ReportedByEmployeeID: verificationToken.EmployeeID,
-			ReportedPhoneNumber:  &unlistedNumber.PhoneNumber,
-			IssueType:            "unlisted_number",
-			UserComment:          &userCommentWithPurpose, // 使用包含 Purpose 的 comment
-			AdminActionStatus:    "pending_review",
+		if err := s.userReportedIssueRepo.SaveReportedIssue(ctx, unlistedIssueToSave); err != nil {
+			return fmt.Errorf("保存未列出号码报告记录失败: %w", err)
 		}
+	}
 
-		if err := s.userReportedIssueRepo.CreateReportedIssue(ctx, reportedIssue); err != nil {
-			return fmt.Errorf("创建未列出号码报告记录失败: %w", err)
+	// 批量创建提交日志
+	if len(submissionLogs) > 0 {
+		if err := s.submissionLogRepo.BatchCreate(ctx, submissionLogs); err != nil {
+			return fmt.Errorf("创建提交日志记录失败: %w", err)
 		}
 	}
 
@@ -493,41 +568,55 @@ func (s *verificationService) SubmitVerificationResult(ctx context.Context, toke
 	return nil
 }
 
-// GetAdminVerificationStatus 获取管理员视图的号码确认流程状态
-func (s *verificationService) GetAdminVerificationStatus(ctx context.Context, employeeID, departmentName string) (*models.AdminVerificationStatusResponse, error) {
-	response := &models.AdminVerificationStatusResponse{}
+// GetPhoneVerificationStatus 获取基于手机号码维度的管理员视图
+func (s *verificationService) GetPhoneVerificationStatus(ctx context.Context, employeeID, departmentName string) (*models.PhoneVerificationStatusResponse, error) {
+	response := &models.PhoneVerificationStatusResponse{}
 
 	// 1. 获取统计摘要
-	// 1.1 计算已发起的总令牌数
-	totalInitiated, err := s.verificationTokenRepo.CountByStatus(ctx, models.VerificationTokenStatusPending)
+	// 1.0 计算系统中可用手机号码总数量（排除已注销）
+	totalCount, err := s.submissionLogRepo.CountTotalPhones(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("计算已发起的总令牌数失败: %w", err)
+		return nil, fmt.Errorf("计算手机号码总数量失败: %w", err)
 	}
 
-	// 1.2 计算已响应的令牌数
-	responded, err := s.verificationTokenRepo.CountByStatus(ctx, "used") // 假设使用过的令牌状态为 "used"
+	// 1.1 计算已确认使用的手机号码数
+	confirmedCount, err := s.submissionLogRepo.CountConfirmedPhones(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("计算已响应的令牌数失败: %w", err)
+		return nil, fmt.Errorf("计算已确认使用的手机号码数失败: %w", err)
 	}
 
-	// 1.3 计算未响应的令牌数（状态为pending且未过期）
-	pendingResponse, err := s.verificationTokenRepo.CountActive(ctx)
+	// 1.2 计算有问题的手机号码数
+	reportedIssuesCount, err := s.submissionLogRepo.CountReportedIssuePhones(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("计算未响应的令牌数失败: %w", err)
+		return nil, fmt.Errorf("计算有问题的手机号码数失败: %w", err)
 	}
 
-	// 1.4 计算用户报告的问题总数
-	issuesReportedCount, err := s.userReportedIssueRepo.CountReportedIssues(ctx)
+	// 1.3 计算待确认的手机号码数
+	pendingCount, err := s.submissionLogRepo.CountPendingPhones(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("计算用户报告的问题总数失败: %w", err)
+		return nil, fmt.Errorf("计算待确认的手机号码数失败: %w", err)
 	}
+
+	// 1.4 计算新上报的手机号码数
+	newlyReportedCount, err := s.submissionLogRepo.CountNewlyReportedPhones(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("计算新上报的手机号码数失败: %w", err)
+	}
+
+	// 1.5 获取已确认使用的手机号码详情列表
+	confirmedPhones, err := s.submissionLogRepo.FindConfirmedPhoneDetails(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("获取已确认使用的手机号码详情列表失败: %w", err)
+	}
+	response.ConfirmedPhones = confirmedPhones
 
 	// 构建统计摘要
-	response.Summary = models.VerificationSummary{
-		TotalInitiated:      totalInitiated,
-		Responded:           responded,
-		PendingResponse:     pendingResponse,
-		IssuesReportedCount: issuesReportedCount,
+	response.Summary = models.PhoneVerificationSummary{
+		TotalPhonesCount:         totalCount,
+		ConfirmedPhonesCount:     confirmedCount,
+		ReportedIssuesCount:      reportedIssuesCount,
+		PendingPhonesCount:       pendingCount,
+		NewlyReportedPhonesCount: newlyReportedCount,
 	}
 
 	// 2. 获取未响应用户列表

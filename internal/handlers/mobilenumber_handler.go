@@ -272,12 +272,6 @@ func (h *MobileNumberHandler) UpdateMobileNumber(c *gin.Context) {
 	utils.RespondSuccess(c, http.StatusOK, updatedMobileNumber, "手机号码更新成功")
 }
 
-// MobileNumberAssignPayload 定义了分配号码的请求体
-type MobileNumberAssignPayload struct {
-	EmployeeID     string `json:"employeeId" binding:"required"` // 改为 string, 代表业务工号
-	AssignmentDate string `json:"assignmentDate" binding:"required,datetime=2006-01-02"`
-}
-
 // AssignMobileNumber godoc
 // @Summary 将指定手机号码分配给一个员工
 // @Description 校验目标号码是否为"闲置"状态，目标员工是否为"在职"状态。更新号码记录，关联当前使用人员工ID，将号码状态改为"在用"。创建一条新的号码使用历史记录。
@@ -285,7 +279,7 @@ type MobileNumberAssignPayload struct {
 // @Accept json
 // @Produce json
 // @Param phoneNumber path string true "手机号码字符串"
-// @Param assignPayload body models.MobileNumberAssignPayload true "分配信息 (员工业务工号和分配日期 YYYY-MM-DD)"
+// @Param assignPayload body models.MobileNumberAssignPayload true "分配信息 (员工业务工号和分配日期和用途 YYYY-MM-DD)"
 // @Success 200 {object} utils.SuccessResponse{data=models.MobileNumber} "成功分配后的号码对象"
 // @Failure 400 {object} utils.APIErrorResponse "请求参数错误 / 无效的日期格式 / 无效的手机号码格式" // 更新了描述
 // @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
@@ -315,8 +309,8 @@ func (h *MobileNumberHandler) AssignMobileNumber(c *gin.Context) {
 		return
 	}
 
-	// 调用服务层，传递 phoneNumberStr 而不是 numberID
-	assignedMobileNumber, err := h.service.AssignMobileNumber(phoneNumberStr, payload.EmployeeID, assignmentDate)
+	// 调用服务层，传递 phoneNumberStr 而不是 numberID，并添加用途字段
+	assignedMobileNumber, err := h.service.AssignMobileNumber(phoneNumberStr, payload.EmployeeID, assignmentDate, payload.Purpose)
 	if err != nil {
 		switch {
 		case errors.Is(err, services.ErrMobileNumberNotFound):

@@ -73,6 +73,7 @@ type MobileNumberUpdatePayload struct {
 type MobileNumberAssignPayload struct {
 	EmployeeID     string `json:"employeeId" binding:"required"` // 员工业务工号
 	AssignmentDate string `json:"assignmentDate" binding:"required,datetime=2006-01-02"`
+	Purpose        string `json:"purpose" binding:"required,max=255"` // 号码用途，必填
 }
 
 // MobileNumberUnassignPayload 定义了回收号码的请求体

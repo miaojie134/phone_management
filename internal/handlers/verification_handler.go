@@ -253,29 +253,82 @@ func (h *VerificationHandler) SubmitVerificationResult(c *gin.Context) {
 	utils.RespondSuccess(c, http.StatusOK, nil, "您的反馈已成功提交，感谢您的配合！")
 }
 
+/*
 // GetVerificationAdminStatus godoc
-// @Summary 管理员查看号码确认流程的整体状态和结果
-// @Description 获取号码确认流程的统计摘要，包括未响应用户列表、用户报告的问题列表等
+// @Summary 获取管理员视图的号码确认流程状态
+// @Description 获取管理员视图的号码确认流程状态，包括统计摘要和详细信息
 // @Tags Verification
+// @Accept json
 // @Produce json
-// @Param employeeId query string false "按员工工号筛选"
-// @Param departmentName query string false "按部门名称筛选"
-// @Success 200 {object} utils.SuccessResponse{data=models.AdminVerificationStatusResponse} "成功响应，包含流程统计信息和详情列表"
-// @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
+// @Param employee_id query string false "员工业务工号，用于筛选"
+// @Param employeeId query string false "员工业务工号，用于筛选（兼容旧版本）"
+// @Param department query string false "部门名称，用于筛选"
+// @Param departmentName query string false "部门名称，用于筛选（兼容旧版本）"
+// @Success 200 {object} utils.SuccessResponse{data=models.AdminVerificationStatusResponse} "成功响应"
+// @Failure 400 {object} utils.APIErrorResponse "请求参数错误"
+// @Failure 401 {object} utils.APIErrorResponse "未授权"
 // @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
-// @Security BearerAuth
 // @Router /verification/admin/status [get]
+// @Security BearerAuth
 func (h *VerificationHandler) GetVerificationAdminStatus(c *gin.Context) {
-	// 从查询参数中获取筛选条件
-	employeeID := c.Query("employeeId")
-	departmentName := c.Query("departmentName")
+	// 从查询参数中获取可选的筛选条件
+	// 优先使用标准化的参数名（带下划线），如果不存在则使用驼峰式命名参数（兼容旧版本）
+	employeeID := c.Query("employee_id")
+	if employeeID == "" {
+		employeeID = c.Query("employeeId")
+	}
 
-	// 调用服务层获取状态信息
-	statusResponse, err := h.verificationService.GetAdminVerificationStatus(c.Request.Context(), employeeID, departmentName)
+	departmentName := c.Query("department")
+	if departmentName == "" {
+		departmentName = c.Query("departmentName")
+	}
+
+	// 调用服务层获取管理员视图的号码确认流程状态
+	adminStatus, err := h.verificationService.GetAdminVerificationStatus(c.Request.Context(), employeeID, departmentName)
 	if err != nil {
-		utils.RespondInternalServerError(c, "获取号码确认状态失败", err.Error())
+		utils.RespondInternalServerError(c, "获取管理员视图的号码确认流程状态失败", err.Error())
 		return
 	}
 
-	utils.RespondSuccess(c, http.StatusOK, statusResponse, "成功获取号码确认状态")
+	utils.RespondSuccess(c, http.StatusOK, adminStatus, "获取管理员视图的号码确认流程状态成功")
+}
+*/
+
+// GetPhoneVerificationStatus godoc
+// @Summary 获取基于手机号码维度的确认流程状态
+// @Description 获取基于手机号码维度的确认流程状态，包括统计摘要和详细信息
+// @Tags Verification
+// @Accept json
+// @Produce json
+// @Param employee_id query string false "员工业务工号，用于筛选"
+// @Param employeeId query string false "员工业务工号，用于筛选（兼容旧版本）"
+// @Param department query string false "部门名称，用于筛选"
+// @Param departmentName query string false "部门名称，用于筛选（兼容旧版本）"
+// @Success 200 {object} utils.SuccessResponse{data=models.PhoneVerificationStatusResponse} "成功响应"
+// @Failure 400 {object} utils.APIErrorResponse "请求参数错误"
+// @Failure 401 {object} utils.APIErrorResponse "未授权"
+// @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
+// @Router /verification/admin/phone-status [get]
+// @Security BearerAuth
+func (h *VerificationHandler) GetPhoneVerificationStatus(c *gin.Context) {
+	// 从查询参数中获取可选的筛选条件
+	// 优先使用标准化的参数名（带下划线），如果不存在则使用驼峰式命名参数（兼容旧版本）
+	employeeID := c.Query("employee_id")
+	if employeeID == "" {
+		employeeID = c.Query("employeeId")
+	}
+
+	departmentName := c.Query("department")
+	if departmentName == "" {
+		departmentName = c.Query("departmentName")
+	}
+
+	// 调用服务层获取基于手机号码维度的确认流程状态
+	phoneStatus, err := h.verificationService.GetPhoneVerificationStatus(c.Request.Context(), employeeID, departmentName)
+	if err != nil {
+		utils.RespondInternalServerError(c, "获取基于手机号码维度的确认流程状态失败", err.Error())
+		return
+	}
+
+	utils.RespondSuccess(c, http.StatusOK, phoneStatus, "获取基于手机号码维度的确认流程状态成功")
 }
