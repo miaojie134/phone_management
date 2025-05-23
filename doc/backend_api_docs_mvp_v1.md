@@ -149,21 +149,32 @@ POST /login
 }
 
 响应 (200 OK):
-{
-"token": "generated_jwt_token",
-"user": {
-"username": "admin_username",
-"role": "admin"
-}
-}
+JWT 详细信息:
+
+- 过期时间: 24 小时
+- Claims:
+  - `jti` (JWT ID): UUID
+  - `sub` (Subject): 用户名
+  - `exp` (Expiration Time): 过期时间戳
+  - `iss` (Issuer): "phone_system"
+  - `aud` (Audience): ["admin"]
+    {
+    "token": "generated_jwt_token",
+    "user": {
+    "username": "admin_username",
+    "role": "admin"
+    }
+    }
 
 响应 (401 Unauthorized): { "error": "无效的用户名或密码" }
+响应 (500 Internal Server Error): { "error": "无法生成 Token" } (来自代码实现)
 
 POST /logout (需要认证)
-描述: 管理员登出。
+描述: 管理员登出。此接口会将当前 Token 的 JTI (JWT ID) 添加到服务器端的拒绝列表中，使其立即失效。
 请求体: (无)
 
 响应 (200 OK): { "message": "成功登出" }
+响应 (400 Bad Request): { "error": "登出上下文错误", "details": "JTI 或 EXP 未在上下文中找到或无效" } (来自代码实现)
 
 3.3 手机号码 API (/api/v1/mobilenumbers) (均需要认证)
 
@@ -171,342 +182,493 @@ POST /
 描述: 新增一个手机号码。
 请求体:
 {
-"phoneNumber": "13800138000",
-"applicantEmployeeId": "employee_db_id_or_business_key", // 办卡人员工 ID
-"applicationDate": "2024-01-15",
-"purpose": "办公用", // 号码用途，可选
-"vendor": "中国移动",
-"status": "闲置", // 初始状态
-"remarks": "新购入卡"
+"phoneNumber": "13800138000", // 手机号码 (必填, 11 位数字)
+"applicantEmployeeId": "EMP001", // 办卡人员工业务工号 (必填, string)
+"applicationDate": "2024-01-15", // 办卡日期 (必填, YYYY-MM-DD)
+"status": "闲置", // 初始状态 (必填, 枚举值见下)
+"purpose": "办公用", // 号码用途 (可选, string, max 255)
+"vendor": "中国移动", // 供应商 (可选, string, max 100)
+"remarks": "新购入卡" // 备注 (可选, string, max 255)
 }
 
-响应 (201 Created): 返回创建成功的号码对象。
+`status` 枚举值:
+
+- `闲置`
+- `在用`
+- `待注销`
+- `已注销`
+- `待核实-办卡人离职`
+- `待核实-用户报告` (新增)
+
+响应 (201 Created): 返回创建成功的号码对象 (`models.MobileNumber`)。
+
+响应 (400 Bad Request): { "error": "请求参数错误或数据校验失败", "details": "..." } (例如日期格式错误，或手机号格式错误)
+响应 (404 Not Found): { "error": "办卡人员工工号未找到", "details": "employeeId: EMP001" } (来自代码实现)
+响应 (409 Conflict): { "error": "手机号码已存在" } (来自代码实现)
+响应 (500 Internal Server Error): { "error": "创建手机号码失败", "details": "..." }
 
 GET /
 描述: 获取手机号码列表，支持分页、搜索和筛选。
 查询参数:
 page (可选, number, 默认 1): 页码。
 limit (可选, number, 默认 10): 每页数量。
-sortBy (可选, string): 排序字段。
-sortOrder (可选, string, 'asc'或'desc'): 排序顺序。
-search (可选, string): 搜索关键词 (匹配手机号、使用人、办卡人)。
-status (可选, string): 号码状态筛选。
+sortBy (可选, string): 排序字段 (例如: phoneNumber, applicationDate, status)。
+sortOrder (可选, string, 'asc'或'desc', 默认 'asc'): 排序顺序。
+search (可选, string): 搜索关键词 (匹配手机号、使用人姓名/工号、办卡人姓名/工号)。
+status (可选, string): 号码状态筛选 (具体枚举值见创建接口)。
 applicantStatus (可选, string, 'Active'或'Departed'): 办卡人当前在职状态筛选。
 
 响应 (200 OK):
 {
-"data": [ /* 号码对象列表 */ ],
+"data": {
+"items": [ /* MobileNumberResponse 对象列表 */ ],
 "pagination": {
 "totalItems": 100,
 "totalPages": 10,
 "currentPage": 1,
 "pageSize": 10
 }
+},
+"message": "手机号码列表获取成功"
 }
 
-GET /:id
-描述: 获取指定 ID 的手机号码详情。
-路径参数: id (号码的数据库 ID)。
-
-响应 (200 OK): 返回单个号码对象，包含其使用历史。
-
-响应 (404 Not Found): { "error": "号码未找到" }
-
-POST /:id/update (原 PUT /:id)
-描述: 更新指定 ID 的手机号码信息 (主要用于更新状态、供应商、备注)。
-路径参数: id。
-请求体: (包含要更新的字段)
+`MobileNumberResponse` 对象结构 (部分字段，详见模型定义):
 {
-"status": "待注销",
-"purpose": "客户联系", // 号码用途，可选
-"remarks": "用户申请停用",
-"vendor": "中国联通"
+"id": 123,
+"phoneNumber": "13800138000",
+"applicantEmployeeId": "EMP001",
+"applicantName": "张三",
+"applicantStatus": "Active",
+"applicationDate": "2023-01-15T00:00:00Z",
+"currentEmployeeId": "EMP002",
+"currentUserName": "李四",
+"status": "在用",
+"purpose": "办公用",
+"vendor": "中国移动",
+"remarks": "备注信息",
+"cancellationDate": null,
+"createdAt": "2023-01-15T10:00:00Z",
+"updatedAt": "2023-01-16T11:00:00Z",
+"usageHistory": [ /* NumberUsageHistory 对象列表 */ ]
 }
 
-响应 (200 OK): 返回更新后的号码对象。
+GET /mobilenumbers/{phoneNumber}
+描述: 获取指定手机号码的详情。
+路径参数:
+phoneNumber (string, required): 手机号码字符串。
 
-POST /:id/assign
-描述: 将指定 ID 的手机号码分配给一个员工。
-路径参数: id (号码 ID)。
-请求体:
+响应 (200 OK): 返回单个 `MobileNumberResponse` 对象 (结构同上列表接口)，包含其使用历史。
+
+响应 (404 Not Found): { "error": "手机号码未找到" }
+响应 (500 Internal Server Error): { "error": "获取手机号码详情失败", "details": "..." }
+
+POST /mobilenumbers/{phoneNumber}/update
+描述: 更新指定手机号码的信息 (主要用于更新状态、用途、供应商、备注)。当号码状态变更为"已注销"时，自动记录注销时间。至少需要提供一个有效的更新字段。
+路径参数:
+phoneNumber (string, required): 手机号码字符串。
+请求体: (`MobileNumberUpdatePayload`)
 {
-"employeeId": "target_employee_db_id", // 目标使用人员工 ID
-"assignmentDate": "2024-05-15" // 分配日期
+"status": "待注销", // (可选, 枚举值见创建接口)
+"purpose": "客户联系", // (可选, string, max 255)
+"remarks": "用户申请停用", // (可选, string, max 255)
+"vendor": "中国联通" // (可选, string, max 100)
 }
 
-响应 (200 OK): 返回更新后的号码对象。
+响应 (200 OK): 返回更新后的 `MobileNumber` 对象。
 
-POST /:id/unassign
-描述: 从当前使用人处回收指定 ID 的手机号码。
-路径参数: id (号码 ID)。
-请求体: (可选，可包含回收日期)
+响应 (400 Bad Request): { "error": "请求参数错误或数据校验失败 / 没有提供任何有效的更新字段 / 无效的手机号码格式", "details": "..." }
+响应 (404 Not Found): { "error": "手机号码未找到" }
+响应 (500 Internal Server Error): { "error": "更新手机号码失败", "details": "..." }
+
+POST /mobilenumbers/{phoneNumber}/assign
+描述: 将指定手机号码分配给一个员工。
+路径参数:
+phoneNumber (string, required): 手机号码字符串。
+请求体: (`MobileNumberAssignPayload`)
 {
-"reclaimDate": "2024-06-01" // 回收日期
+"employeeId": "EMP002", // 目标使用人员工业务工号 (必填, string)
+"assignmentDate": "2024-05-15", // 分配日期 (必填, YYYY-MM-DD)
+"purpose": "日常办公" // 号码用途 (必填, string, max 255)
 }
 
-响应 (200 OK): 返回更新后的号码对象。
+响应 (200 OK): 返回更新后的 `MobileNumber` 对象。
+
+响应 (400 Bad Request): { "error": "请求参数错误 / 无效的日期格式 / 无效的手机号码格式", "details": "..." }
+响应 (404 Not Found): { "error": "手机号码或目标员工工号未找到", "details": "..." }
+响应 (409 Conflict): { "error": "操作冲突 (例如：号码非闲置，员工非在职)", "details": "..." }
+响应 (500 Internal Server Error): { "error": "分配手机号码失败", "details": "..." }
+
+POST /mobilenumbers/{phoneNumber}/unassign
+描述: 从当前使用人处回收指定手机号码。
+路径参数:
+phoneNumber (string, required): 手机号码字符串。
+请求体: (可选, `MobileNumberUnassignPayload`)
+{
+"reclaimDate": "2024-06-01" // 回收日期 (可选, YYYY-MM-DD, 默认当前时间)
+}
+
+响应 (200 OK): 返回更新后的 `MobileNumber` 对象。
+
+响应 (400 Bad Request): { "error": "请求参数错误 / 无效的日期格式 / 无效的手机号码格式", "details": "..." }
+响应 (404 Not Found): { "error": "手机号码未找到" }
+响应 (409 Conflict): { "error": "操作冲突 (例如：号码非在用状态，或未找到有效的分配记录)", "details": "..." }
+响应 (500 Internal Server Error): { "error": "回收手机号码失败", "details": "..." }
 
 3.4 员工 API (/api/v1/employees) (均需要认证)
 POST /
-描述: 新增一个员工。
-请求体:
+描述: 新增一个员工。员工业务工号 (employeeId) 由系统后端自动生成和分配。
+请求体: (`CreateEmployeePayload`)
 {
-"employeeId": "EMP001", // 员工业务工号
-"fullName": "张三",
-"department": "销售部"
-// employmentStatus 默认为 "Active"
+"fullName": "张三", // 姓名 (必填, string, max 255)
+"phoneNumber": "13912345678", // 手机号 (可选, 11 位数字, 唯一)
+"email": "zhangsan@example.com", // 邮箱 (可选, email 格式, 唯一, max 255)
+"department": "销售部" // 部门 (可选, string, max 255)
 }
+注: `employmentStatus` 默认为 "Active"，由后端处理。
 
-响应 (201 Created): 返回创建成功的员工对象。
+响应 (201 Created): 返回创建成功的 `Employee` 对象 (包含系统生成的 `employeeId`)。
+
+响应 (400 Bad Request): { "error": "请求参数错误或数据校验失败", "details": "..." } (例如手机号或邮箱格式错误)
+响应 (409 Conflict): { "error": "手机号码已存在 / 邮箱已存在 / 员工工号已存在 (理论上后端生成不会冲突)", "details": "..." }
+响应 (500 Internal Server Error): { "error": "创建员工失败", "details": "..." }
 
 GET /
 描述: 获取员工列表，支持分页、搜索和筛选。
 查询参数:
-page, limit, sortBy, sortOrder (同号码列表)。
-search (可选, string): 搜索关键词 (匹配姓名、工号)。
+page, limit (同号码列表)。
+sortBy (可选, string): 排序字段 (例如: employeeId, fullName, createdAt)。
+sortOrder (可选, string, 'asc'或'desc', 默认 'desc'): 排序顺序。
+search (可选, string): 搜索关键词 (匹配姓名、工号、手机号、邮箱)。
 employmentStatus (可选, string, 'Active'或'Departed'): 在职状态筛选。
 
-响应 (200 OK): 返回员工对象列表及分页信息。
-
-GET /:employeeId
-描述: 获取指定 ID 的员工详情。
-路径参数: id (员工的数据库 ID )。
-响应 (200 OK): 返回单个员工对象，包含其作为"办卡人"和"当前使用人"的号码简要列表。
-
-POST /:employeeId/update
-描述: 更新指定 ID 的员工信息。
-路径参数: employeeId。
-请求体: (包含要更新的字段)
+响应 (200 OK): 返回 `PagedEmployeesData` 对象，结构类似号码列表的响应，包含员工对象列表 (`Employee`) 及分页信息。
 {
-"department": "市场部",
-"employmentStatus": "Departed", // 若改为 Departed
-"terminationDate": "2024-05-10" // 离职日期
+"data": {
+"items": [ /* Employee 对象列表 */ ],
+"pagination": { ... }
+},
+"message": "员工列表获取成功"
 }
 
-响应 (200 OK): 返回更新后的员工对象。
-
-3.5 数据导入 API (/api/v1/import) (均需要认证)
-
-POST /employees
-描述: 批量导入员工数据。
-请求体: multipart/form-data，包含一个名为 file 的 Excel 或 CSV 文件。
-
-响应 (200 OK):
+`Employee` 对象结构 (部分字段，详见模型定义):
 {
-"message": "员工数据导入处理完成。",
+"id": 1,
+"employeeId": "EMP0000001",
+"fullName": "张三",
+"phoneNumber": "13912345678",
+"email": "zhangsan@example.com",
+"department": "销售部",
+"employmentStatus": "Active",
+"hireDate": "2023-01-01T00:00:00Z",
+"terminationDate": null,
+"createdAt": "2023-01-01T10:00:00Z",
+"updatedAt": "2023-01-01T10:00:00Z"
+}
+
+GET /employees/{employeeId}
+描述: 获取指定业务工号的员工详情。
+路径参数:
+employeeId (string, required): 员工业务工号。
+响应 (200 OK): 返回单个 `EmployeeDetailResponse` 对象。
+`EmployeeDetailResponse` 结构 (部分字段，详见模型定义):
+{
+"id": 1,
+"employeeId": "EMP0000001",
+"fullName": "张三",
+"department": "销售部",
+"employmentStatus": "Active",
+// ... 其他员工基本信息 ...
+"handledMobileNumbers": [
+{ "id": 10, "phoneNumber": "13800138000", "status": "在用" }
+],
+"usingMobileNumbers": [
+{ "id": 10, "phoneNumber": "13800138000", "status": "在用" },
+{ "id": 11, "phoneNumber": "13700137000", "status": "闲置" }
+]
+}
+响应 (404 Not Found): { "error": "员工未找到" }
+响应 (500 Internal Server Error): { "error": "获取员工详情失败", "details": "..." }
+
+POST /employees/{employeeId}/update
+描述: 更新指定业务工号的员工信息。至少需要提供一个有效的更新字段。
+路径参数:
+employeeId (string, required): 员工业务工号。
+请求体: (`UpdateEmployeePayload`)
+{
+"department": "市场部", // (可选, string, max 255)
+"employmentStatus": "Departed", // (可选, string, 枚举值: 'Active', 'Inactive', 'Departed')
+"terminationDate": "2024-05-10" // (可选, YYYY-MM-DD, 仅当 employmentStatus 为 'Departed' 时有效或一同提供)
+}
+业务逻辑校验:
+
+- 如果提供了 `terminationDate`，`employmentStatus` 必须是 `Departed`。
+- 如果 `employmentStatus` 更新为非 `Departed`，则 `terminationDate` 不应有值或应被清空。
+
+响应 (200 OK): 返回更新后的 `Employee` 对象。
+
+响应 (400 Bad Request): { "error": "请求参数错误或数据校验失败 / 至少需要提供一个更新字段 / 状态与离职日期组合无效", "details": "..." }
+响应 (404 Not Found): { "error": "员工未找到" }
+响应 (500 Internal Server Error): { "error": "更新员工信息失败", "details": "..." }
+
+3.5 数据导入 API (均需要认证)
+
+POST /api/v1/employees/import
+描述: 批量导入员工数据。后端会生成并分配 `employeeId`。
+请求体: multipart/form-data，包含一个名为 `file` 的 CSV 文件。
+CSV 文件要求:
+
+- 编码: GBK 或 UTF-8 (带或不带 BOM)。
+- 表头 (必须按此顺序): `fullName,phoneNumber,email,department`
+  - `fullName` (string, 必填)
+  - `phoneNumber` (string, 可选, 11 位数字, 唯一)
+  - `email` (string, 可选, email 格式, 唯一)
+  - `department` (string, 可选)
+
+响应 (200 OK): (`BatchImportResponse`)
+{
+"message": "员工数据导入处理完成。成功: 95, 失败: 5",
 "successCount": 95,
 "errorCount": 5,
 "errors": [
-{ "row": 10, "employeeId": "EMP010", "reason": "员工工号已存在" },
-{ "row": 25, "reason": "姓名不能为空" }
+{ "rowNumber": 10, "rowData": ["旧李四", "139...", "lisi@", ""], "reason": "邮箱格式无效" },
+{ "rowNumber": 25, "rowData": ["", "..."], "reason": "fullName 不能为空" }
 ]
 }
 
-POST /mobilenumbers
+POST /api/v1/mobilenumbers/import
 描述: 批量导入手机号码数据。
-请求体: multipart/form-data，包含一个名为 file 的 Excel 或 CSV 文件。
+请求体: multipart/form-data，包含一个名为 `file` 的 CSV 文件。
+CSV 文件要求:
 
-响应 (200 OK): 结构类似员工导入的响应，包含成功/失败统计及错误详情。
+- 编码: GBK 或 UTF-8 (带或不带 BOM)。
+- 表头 (必须按此顺序): `phoneNumber,applicantName,applicationDate,vendor`
+  - `phoneNumber` (string, 必填, 11 位数字, 唯一)
+  - `applicantName` (string, 必填, 办卡人姓名，系统会尝试匹配员工库中的 `fullName` 以关联 `applicantEmployeeId`)
+  - `applicationDate` (string, 必填, YYYY-MM-DD)
+  - `vendor` (string, 可选)
+    (号码的 `status` 默认为 `闲置`，`purpose` 和 `remarks` 默认为空)
+
+响应 (200 OK): (`BatchImportMobileNumbersResponse`)
+{
+"message": "手机号码数据导入处理完成。成功: 90, 失败: 10",
+"successCount": 90,
+"errorCount": 10,
+"errors": [
+{ "rowNumber": 5, "rowData": ["138...", "不存在的人", "2023-01-01", "移动"], "reason": "办卡人姓名 '不存在的人' 未在员工库中找到" },
+{ "rowNumber": 15, "rowData": ["137...", "张三", "日期错误", ""], "reason": "applicationDate 日期格式无效" }
+]
+}
 
 3.6 号码确认 API (/api/v1/verification) (新)
 
 POST /api/v1/verification/initiate
 描述: (异步) 管理员调用此接口后，系统创建一个批处理任务来为目标员工生成唯一的 `VerificationTokens` 记录，并异步调用邮件服务发送包含专属确认链接的邮件。接口立即返回批处理任务的 ID。
-请求体:
+请求体: (`InitiateVerificationRequest`)\n`json\n{\n  \"scope\": \"all_users | department | employee_ids\", // 必填, \"department\" 或 \"employee_ids\" 时 scopeValues 必填\n  \"scopeValues\": [\"value1\", \"value2\"], // 可选，当 scope 为 \"department\" (部门名称数组) 或 \"employee_ids\" (员工业务工号数组) 时需要\n  \"durationDays\": 7 // 必填，令牌有效期天数 (例如 1-30)\n}\n`\n\n 成功响应 (202 Accepted): (`InitiateVerificationResponse`)\n`json\n{\n  \"status\": \"success\",\n  \"message\": \"号码确认流程已作为批处理任务启动。\",\n  \"data\": {\n    \"batchId\": \"c7b5ba2a-3b9c-4b8d-8f3a-8c7d6e5f4g3h\" // 批处理任务的唯一ID\n  }\n}\n`\n\n 错误响应:\n\n- `400 Bad Request`: 请求参数无效 (如 `scope` 无效, `durationDays` 超出范围, 或 `scopeValues` 在需要时未提供，或 scopeValues 内容无法正确处理)。\n- `500 Internal Server Error`: 服务器内部错误 (如创建批处理任务失败或在准备阶段发生错误)。\n\nGET /api/v1/verification/batch/{batchId}/status\n 描述: 获取指定号码确认批处理任务的当前状态、整体进度（包括已处理员工数、令牌生成情况、邮件发送统计：尝试数、成功数、失败数）以及详细的错误报告（例如邮件发送失败的原因）。\n 路径参数: \* `batchId` (string, required): 批处理任务的唯一 ID (UUID)。\n 成功响应 (200 OK): 返回 `models.VerificationBatchTask` 对象。\n`json\n{\n  \"status\": \"success\",\n  \"message\": \"成功获取批处理任务状态。\",\n  \"data\": {\n    \"id\": \"c7b5ba2a-3b9c-4b8d-8f3a-8c7d6e5f4g3h\",\n    \"status\": \"InProgress | Completed | CompletedWithErrors | Failed | Pending\",\n    \"totalEmployeesToProcess\": 150,\n    \"tokensGeneratedCount\": 100,\n    \"emailsAttemptedCount\": 100,\n    \"emailsSucceededCount\": 95,\n    \"emailsFailedCount\": 5,\n    \"errorSummary\": \"[{\\\"employeeId\\\":\\\"emp123\\\",\\\"employeeName\\\":\\\"张三\\\",\\\"emailAddress\\\":\\\"zhangsan@example.com\\\",\\\"reason\\\":\\\"邮箱不存在或已禁用\\\"}, ...]\", // JSON 字符串化的 EmailFailureDetail 数组\n    \"requestedScopeType\": \"department\",\n    \"requestedScopeValues\": \"[\\\"技术部\\\", \\\"研发部\\\"]\", // JSON 字符串化的数组\n    \"requestedDurationDays\": 7,\n    \"createdAt\": \"2024-05-16T10:00:00Z\",\n    \"updatedAt\": \"2024-05-16T10:05:00Z\"\n  }\n}\n`\n\n 错误响应:\n\n- `400 Bad Request`: `batchId` 格式无效 (例如不是有效的 UUID)。\n- `404 Not Found`: 指定的 `batchId` 未找到。\n- `500 Internal Server Error`: 服务器内部错误。
 
-```json
-{
-  "scope": "all_users | department | employee_ids", // 必填, "department" 或 "employee_ids" 时 scopeValues 必填
-  "scopeValues": ["value1", "value2"], // 可选，当 scope 为 "department" (部门名称数组) 或 "employee_ids" (员工ID数组) 时需要
-  "durationDays": 7 // 必填，令牌有效期天数 (例如 1-30)
-}
-```
-
-成功响应 (202 Accepted):
-
-```json
-{
-  "status": "success",
-  "message": "号码确认流程已作为批处理任务启动。",
-  "data": {
-    "batchId": "c7b5ba2a-3b9c-4b8d-8f3a-8c7d6e5f4g3h" // 批处理任务的唯一ID
-  }
-}
-```
-
-错误响应:
-
-- `400 Bad Request`: 请求参数无效 (如 `scope` 无效, `durationDays` 超出范围, 或 `scopeValues` 在需要时未提供)。
-- `500 Internal Server Error`: 服务器内部错误 (如创建批处理任务失败)。
-
-GET /api/v1/verification/batch/{batchId}/status
-描述: 获取指定号码确认批处理任务的当前状态、整体进度（包括已处理员工数、令牌生成情况、邮件发送统计：尝试数、成功数、失败数）以及详细的错误报告（例如邮件发送失败的原因）。
-路径参数: \* `batchId` (string, required): 批处理任务的唯一 ID。
-成功响应 (200 OK):
-
-```json
-{
-  "status": "success",
-  "message": "成功获取批处理任务状态。",
-  "data": {
-    "id": "c7b5ba2a-3b9c-4b8d-8f3a-8c7d6e5f4g3h",
-    "status": "InProgress | Completed | CompletedWithErrors | Failed | Pending",
-    "totalEmployeesToProcess": 150,
-    "tokensGeneratedCount": 100,
-    "emailsAttemptedCount": 100,
-    "emailsSucceededCount": 95,
-    "emailsFailedCount": 5,
-    "errorSummary": "[{\"employeeId\":\"emp123\",\"employeeName\":\"张三\",\"emailAddress\":\"zhangsan@example.com\",\"reason\":\"邮箱不存在或已禁用\"}, ...]", // 可选，JSON 字符串化的错误详情数组
-    "requestedScopeType": "department",
-    "requestedScopeValues": "[\"技术部\", \"研发部\"]", // JSON 字符串化的数组
-    "requestedDurationDays": 7,
-    "createdAt": "2024-05-16T10:00:00Z",
-    "updatedAt": "2024-05-16T10:05:00Z"
-  }
-}
-```
-
-错误响应:
-
-- `400 Bad Request`: `batchId` 格式无效。
-- `404 Not Found`: 指定的 `batchId` 未找到。
-- `500 Internal Server Error`: 服务器内部错误。
-
-GET /info (无需 JWT 认证, 令牌本身即是认证)
+GET /api/v1/verification/info (无需 JWT 认证, 令牌本身即是认证)
 描述: 用户点击邮件链接后，前端页面调用此接口获取该用户需确认的号码信息以及此前通过该令牌报告的未列出号码。
 查询参数: token (string, required) - 从邮件链接中获取的专属令牌。
 
-响应 (200 OK):
+响应 (200 OK): 返回 `models.VerificationInfo` 对象。
 {
+"status": "success",
+"message": "成功获取待确认号码信息",
+"data": {
 "employeeId": "EMP001", // 员工业务 ID
 "employeeName": "张三",
 "phoneNumbers": [
-{ "id": 123, "phoneNumber": "13800138000", "department": "技术部", "purpose": "办公用", "status": "confirmed" }, // status 可以是 pending, confirmed, reported
-{ "id": 124, "phoneNumber": "13900139000", "department": "技术部", "purpose": "客户联系", "status": "pending" }
+{ "id": 123, "phoneNumber": "13800138000", "department": "技术部", "purpose": "办公用", "status": "confirmed", "userComment": null },
+{ "id": 124, "phoneNumber": "13900139000", "department": "技术部", "purpose": "客户联系", "status": "pending", "userComment": null }
 ],
 "previouslyReportedUnlisted": [
-{ "phoneNumber": "18611120634", "userComment": "交付给我", "reportedAt": "2023-10-27T10:00:00Z" }
+{ "phoneNumber": "18611120634", "userComment": "交付给我", "purpose": "项目临时", "reportedAt": "2023-10-27T10:00:00Z" }
 ],
 "expiresAt": "2023-11-03T10:00:00Z"
 }
+}
 
-响应 (403 Forbidden / 404 Not Found): { "error": "无效或已过期的链接。" }
-业务逻辑:
-验证 token 的有效性（存在、未过期、状态为'pending'）。
-若有效，查询关联员工及其名下所有状态为"在用"或"闲置"的手机号码，并获取这些号码的当前确认状态。
-同时，查询该 token 下用户已报告的未列出号码 (issue_type 为 'unlisted_number')。
-若无效，返回错误。
+响应 (400 Bad Request): { "error": "请求参数无效", "details": "缺少 token 参数" }
+响应 (403 Forbidden): { "error": "无效或已过期的链接。" }
+响应 (500 Internal Server Error): { "error": "获取验证信息失败", "details": "..." }
 
-POST /submit (无需 JWT 认证, 令牌本身即是认证)
+POST /api/v1/verification/submit (无需 JWT 认证, 令牌本身即是认证)
 描述: 用户提交其号码确认结果。
 查询参数: token (string, required)
 
-请求体:
+请求体: (`models.VerificationSubmission`)
 {
 "verifiedNumbers": [
-{ "mobileNumberId": "db_id_1", "action": "confirm_usage", "purpose": "办公用" }, // purpose 必填，用于更新/确认号码用途
-{ "mobileNumberId": "db_id_2", "action": "report_issue", "purpose": "个人使用", "userComment": "这个号码我已经不用了，给李四了" } // purpose 必填
+{ "mobileNumberId": 123, "action": "confirm_usage", "purpose": "办公用", "userComment": "" },
+{ "mobileNumberId": 124, "action": "report_issue", "purpose": "个人使用", "userComment": "这个号码我已经不用了，给李四了" }
 ],
-"unlistedNumbersReported": [ // 用户新增上报的号码
-{ "phoneNumber": "13700137000", "purpose": "临时项目", "userComment": "这个号码公司给的，我一直在用，但列表里没有" } // purpose 必填
+"unlistedNumbersReported": [
+{ "phoneNumber": "13700137000", "purpose": "临时项目", "userComment": "这个号码公司给的，我一直在用，但列表里没有" }
 ]
 }
+详细校验规则:
 
-响应 (200 OK): { "message": "您的反馈已成功提交，感谢您的配合！" }
+- `verifiedNumbers` 和 `unlistedNumbersReported` 不能同时为空。
+- 对于 `verifiedNumbers` 内的每个条目:
+  - `mobileNumberId` (uint, 必填)
+  - `action` (string, 必填, 枚举: `confirm_usage`, `report_issue`)
+  - `purpose` (string, 必填, max 255)
+  - `userComment` (string, 当 action 为 `report_issue` 时必填, max 500)
+- 对于 `unlistedNumbersReported` 内的每个条目:
+  - `phoneNumber` (string, 必填, 11 位数字)
+  - `purpose` (string, 必填, max 255)
+  - `userComment` (string, 可选, max 500)
 
-响应 (403 Forbidden / 404 Not Found): { "error": "无效或已过期的链接，或已提交过。" }
+响应 (200 OK): { "status": "success", "message": "您的反馈已成功提交，感谢您的配合！", "data": null }
 
-业务逻辑:
-验证 token 的有效性（存在、未过期、状态为'pending'）。
-处理 verifiedNumbers:
-confirm_usage: 可更新对应 MobileNumbers 记录的"最后确认日期"或类似字段。
-report_issue: 将对应 MobileNumbers 记录标记为"待核实-用户报告"，并存储 userComment，通知管理员。
-处理 unlistedNumbersReported: 将这些信息记录下来（例如存入一个新表或发送通知给管理员），供管理员审核并添加到系统中。
-将 VerificationTokens 记录的状态更新为 'used'。
+响应 (400 Bad Request): { "error": "请求参数无效", "details": "... (例如 token 缺失, body 为空或字段校验失败)" }
+响应 (403 Forbidden): { "error": "无效或已过期的链接，或已提交过。" }
+响应 (500 Internal Server Error): { "error": "提交确认结果失败", "details": "..." }
 
-GET /admin/status (需要管理员认证)
-描述: 管理员查看号码确认流程的整体状态和结果。
-查询参数 (可选): cycleId (如果每次发起流程有 ID), status (pending, used, expired), employeeId, departmentId
+GET /api/v1/verification/admin/phone-status (需要管理员认证)
+描述: 管理员查看基于手机号码维度的确认流程状态和结果。
+查询参数 (可选):
+employee_id (string): 员工业务工号，用于筛选。
+department (string): 部门名称，用于筛选。
 
-响应 (200 OK): 返回统计信息和需要关注的列表 (例如，未响应用户列表、用户报告问题列表)。
+响应 (200 OK): 返回 `PhoneVerificationStatusResponse` 对象。
 {
+"status": "success",
+"message": "获取基于手机号码维度的确认流程状态成功",
+"data": {
 "summary": {
-"totalInitiated": 150,
-"responded": 120,
-"pendingResponse": 30,
-"issuesReportedCount": 15
+"totalPhonesCount": 200, // 系统中可用手机号码总数量（排除已注销）
+"confirmedPhonesCount": 150, // 已确认使用的手机号码数
+"reportedIssuesCount": 10, // 有问题的手机号码数 (用户报告)
+"pendingPhonesCount": 40, // 待确认的手机号码数 (未响应或令牌未过期)
+"newlyReportedPhonesCount": 5 // 新上报的未列出号码数
 },
-"pendingUsers": [ { "employeeId": "emp003", "fullName": "王五", "email": "..." } ],
-"reportedIssues": [ { "phoneNumber": "139...", "reportedBy": "张三", "comment": "...", "originalStatus": "..." } ],
-"unlistedNumbers": [ { "phoneNumber": "137...", "reportedBy": "李四", "comment": "..." } ]
+"confirmedPhones": [
+{
+"id": 123, "phoneNumber": "13800138000", "department": "技术部",
+"currentUser": "张三 (EMP001)", "purpose": "办公用",
+"confirmedBy": "张三 (EMP001)", "confirmedAt": "2024-05-17T10:00:00Z"
 }
+// ...更多已确认号码...
+],
+"pendingUsers": [
+{ "employeeId": "EMP003", "fullName": "王五", "email": "wangwu@example.com", "expiresAt": "2024-05-20T23:59:59Z" }
+// ...更多未响应用户...
+],
+"reportedIssues": [
+{
+"issueId": 1, "phoneNumber": "13900139001", "reportedBy": "李四 (EMP002)",
+"comment": "此号码非我使用", "purpose": "项目专用", "originalStatus": "在用",
+"reportedAt": "2024-05-16T14:30:00Z", "adminActionStatus": "pending_review"
+}
+// ...更多报告的问题...
+],
+"unlistedNumbers": [
+{ "phoneNumber": "13700137000", "reportedBy": "赵六 (EMP004)", "purpose": "备用", "userComment": "列表中没有", "reportedAt": "2024-05-15T09:00:00Z" }
+// ...更多用户上报的未列出号码...
+]
+}
+}
+
+响应 (400 Bad Request): { "error": "请求参数错误", "details": "..." }
+响应 (500 Internal Server Error): { "error": "获取确认流程状态失败", "details": "..." }
 
 4. 数据模型详述
 
 Users (管理员用户表)
 
-id (PK, SERIAL 或 INT AUTO_INCREMENT, NOT NULL) - 主键 ID
+id (PK, INT64 AUTO_INCREMENT, NOT NULL) - 主键 ID
 username (VARCHAR(255), UNIQUE, NOT NULL) - 用户名
 passwordHash (VARCHAR(255), NOT NULL) - 加密后的密码
 role (VARCHAR(50), NOT NULL, DEFAULT 'admin') - 角色 (MVP 阶段固定为 'admin')
-createdAt (TIMESTAMP, NOT NULL, DEFAULT CURRENT_TIMESTAMP) - 创建时间
-updatedAt (TIMESTAMP, NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) - 更新时间
+createdAt (TIMESTAMP, NOT NULL, autoCreateTime) - 创建时间 (由 GORM 自动管理)
+updatedAt (TIMESTAMP, NOT NULL, autoUpdateTime) - 更新时间 (由 GORM 自动管理)
+deletedAt (TIMESTAMP, NULL, INDEX) - 软删除时间 (由 GORM 自动管理)
 
 Employees (员工表)
-id (PK, SERIAL 或 INT AUTO_INCREMENT, NOT NULL) - 主键 ID
-employeeId (VARCHAR(100), UNIQUE, NOT NULL) - 员工业务工号
+id (PK, INT64 AUTO_INCREMENT, NOT NULL) - 主键 ID
+employeeId (VARCHAR(10), UNIQUE, NOT NULL) - 员工业务工号 (例如: EMP0000001, 由后端自动生成)
 fullName (VARCHAR(255), NOT NULL) - 姓名
+phoneNumber (VARCHAR(11), NULL, UNIQUE) - 员工手机号码 (11 位数字, 可选, 唯一)
+email (VARCHAR(255), NULL, UNIQUE) - 员工邮箱 (可选, 唯一)
 department (VARCHAR(255), NULL) - 部门
-employmentStatus (VARCHAR(50), NOT NULL, DEFAULT 'Active') - 在职状态 (例如: 'Active', 'Departed')
+employmentStatus (VARCHAR(50), NOT NULL, DEFAULT 'Active') - 在职状态 (例如: 'Active', 'Departed', 'Inactive')
 hireDate (DATE, NULL) - 入职日期
 terminationDate (DATE, NULL) - 离职日期
-createdAt (TIMESTAMP, NOT NULL, DEFAULT CURRENT_TIMESTAMP)
-updatedAt (TIMESTAMP, NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)
+createdAt (TIMESTAMP, NOT NULL, autoCreateTime) - 创建时间 (由 GORM 自动管理)
+updatedAt (TIMESTAMP, NOT NULL, autoUpdateTime) - 更新时间 (由 GORM 自动管理)
+deletedAt (TIMESTAMP, NULL, INDEX) - 软删除时间 (由 GORM 自动管理)
 
 MobileNumbers (手机号码表)
-id (PK, SERIAL 或 INT AUTO_INCREMENT, NOT NULL) - 主键 ID
-phoneNumber (VARCHAR(50), UNIQUE, NOT NULL) - 手机号码
-applicantEmployeeDbId (FK, INT, NOT NULL) - 办卡人员工记录的数据库 ID (关联 Employees.id)
+id (PK, UINT AUTO_INCREMENT, NOT NULL) - 主键 ID
+phoneNumber (VARCHAR(11), UNIQUE, NOT NULL) - 手机号码 (11 位数字)
+applicantEmployeeId (VARCHAR(10), NOT NULL) - 办卡人员工业务工号 (关联 Employees.employeeId)
 applicationDate (DATE, NOT NULL) - 办卡日期
-currentEmployeeDbId (FK, INT, NULL) - 当前使用人员工记录的数据库 ID (关联 Employees.id)
-status (VARCHAR(50), NOT NULL, DEFAULT '闲置') - 号码状态 (例如: '闲置', '在用', '待注销', '已注销', '待核实-办卡人离职')
+currentEmployeeId (VARCHAR(10), NULL) - 当前使用人员工业务工号 (关联 Employees.employeeId)
+status (VARCHAR(50), NOT NULL, DEFAULT '闲置') - 号码状态 (例如: '闲置', '在用', '待注销', '已注销', '待核实-办卡人离职', '待核实-用户报告')
 purpose (VARCHAR(255), NULL) - 号码用途 (例如: '办公', '客户联系', '个人使用')
 vendor (VARCHAR(100), NULL) - 供应商
 remarks (TEXT, NULL) - 备注
 cancellationDate (DATE, NULL) - 注销日期
-createdAt (TIMESTAMP, NOT NULL, DEFAULT CURRENT_TIMESTAMP)
-updatedAt (TIMESTAMP, NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)
+lastConfirmationDate (TIMESTAMP, NULL) - 最后确认日期 (由号码确认流程更新)
+createdAt (TIMESTAMP, NOT NULL, autoCreateTime) - 创建时间 (由 GORM 自动管理)
+updatedAt (TIMESTAMP, NOT NULL, autoUpdateTime) - 更新时间 (由 GORM 自动管理)
+deletedAt (TIMESTAMP, NULL, INDEX) - 软删除时间 (由 GORM 自动管理)
 
 NumberUsageHistory (号码使用历史表)
-id (PK, SERIAL 或 INT AUTO_INCREMENT, NOT NULL) - 主键 ID
-mobileNumberDbId (FK, INT, NOT NULL) - 手机号码记录的数据库 ID (关联 MobileNumbers.id)
-employeeDbId (FK, INT, NOT NULL) - 使用人员工记录的数据库 ID (关联 Employees.id)
+id (PK, UINT AUTO_INCREMENT, NOT NULL) - 主键 ID
+mobileNumberDbId (FK, UINT, NOT NULL) - 手机号码记录的数据库 ID (关联 MobileNumbers.id)
+employeeId (VARCHAR(10), NOT NULL) - 使用人员工业务工号 (关联 Employees.employeeId)
 startDate (TIMESTAMP, NOT NULL) - 使用开始日期时间
 endDate (TIMESTAMP, NULL) - 使用结束日期时间
-createdAt (TIMESTAMP, NOT NULL, DEFAULT CURRENT_TIMESTAMP)
-updatedAt (TIMESTAMP, NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)
+purpose (VARCHAR(255), NULL) - 本次分配的用途
+createdAt (TIMESTAMP, NOT NULL, autoCreateTime) - 创建时间 (由 GORM 自动管理)
+updatedAt (TIMESTAMP, NOT NULL, autoUpdateTime) - 更新时间 (由 GORM 自动管理)
+deletedAt (TIMESTAMP, NULL, INDEX) - 软删除时间 (由 GORM 自动管理)
 
 VerificationTokens (号码确认令牌表) (新)
-id (PK, SERIAL 或 INT AUTO_INCREMENT, NOT NULL) - 主键 ID
-employeeDbId (FK, INT, NOT NULL) - 关联的员工数据库 ID (参照 Employees.id)
+id (PK, UINT AUTO_INCREMENT, NOT NULL) - 主键 ID
+employeeId (VARCHAR(10), NOT NULL, INDEX) - 关联的员工业务工号 (参照 Employees.employeeId)
 token (VARCHAR(255), UNIQUE, NOT NULL, INDEX) - 唯一验证令牌 (例如 UUID)
 status (VARCHAR(50), NOT NULL, DEFAULT 'pending') - 令牌状态 (例如: 'pending', 'used', 'expired')
 expiresAt (TIMESTAMP, NOT NULL) - 令牌过期时间
-createdAt (TIMESTAMP, NOT NULL, DEFAULT CURRENT_TIMESTAMP)
-updatedAt (TIMESTAMP, NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)
+createdAt (TIMESTAMP, NOT NULL, autoCreateTime) - 创建时间 (由 GORM 自动管理)
+updatedAt (TIMESTAMP, NOT NULL, autoUpdateTime) - 更新时间 (由 GORM 自动管理)
+deletedAt (TIMESTAMP, NULL, INDEX) - 软删除时间 (由 GORM 自动管理)
 
-UserReportedIssues (用户报告问题/未列出号码表) (新 - 可选, 或并入备注/日志)
-id (PK, SERIAL)
-verificationTokenId (FK, INT, NULL, references VerificationTokens.id) - 关联的验证令牌 ID (如果是通过验证流程报告的)
-reportedByEmployeeDbId (FK, INT, NOT NULL, references Employees.id) - 报告问题的员工 ID
-mobileNumberDbId (FK, INT, NULL, references MobileNumbers.id) - 如果是针对现有号码报告问题
-reportedPhoneNumber (VARCHAR(50), NULL) - 如果是报告未列出的号码
-issueType (VARCHAR(50), NOT NULL) - 问题类型 (例如 'not_my_number', 'number_changed_user', 'unlisted_number_in_use')
+VerificationSubmissionLog (号码确认提交日志表) (新)
+描述: 记录用户通过号码确认流程提交的所有反馈，包括确认使用、报告问题和上报未列出号码。
+
+id (PK, UINT AUTO_INCREMENT, NOT NULL) - 主键 ID
+employeeId (VARCHAR(10), NOT NULL, INDEX) - 提交操作的员工业务工号 (参照 Employees.employeeId)
+verificationTokenId (UINT, NOT NULL, INDEX) - 关联的验证令牌 ID (参照 VerificationTokens.id)
+mobileNumberId (UINT, NULL, INDEX) - 关联的系统内手机号码 ID (如果操作针对现有号码, 参照 MobileNumbers.id)
+phoneNumber (VARCHAR(20), NOT NULL, INDEX) - 操作涉及的手机号码 (对于系统内号码，此为冗余；对于未列出号码，此为主要标识)
+actionType (VARCHAR(50), NOT NULL, INDEX) - 操作类型 (例如: 'confirm_usage', 'report_issue', 'report_unlisted')
+purpose (VARCHAR(255), NULL) - 用户提供/确认的号码用途
 userComment (TEXT, NULL) - 用户备注
-adminActionStatus (VARCHAR(50), NOT NULL, DEFAULT 'pending_review') - 管理员处理状态 (例如 'pending_review', 'resolved', 'archived')
-adminRemarks (TEXT, NULL) - 管理员处理备注
-createdAt (TIMESTAMP, NOT NULL, DEFAULT CURRENT_TIMESTAMP)
-updatedAt (TIMESTAMP, NOT NULL, DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)
+createdAt (TIMESTAMP, NOT NULL, autoCreateTime) - 创建时间 (由 GORM 自动管理)
+updatedAt (TIMESTAMP, NOT NULL, autoUpdateTime) - 更新时间 (由 GORM 自动管理)
+deletedAt (TIMESTAMP, NULL, INDEX) - 软删除时间 (由 GORM 自动管理)
+
+注：管理员跟进状态 (如 `adminActionStatus`, `adminRemarks`) 可通过此日志表派生并在服务层或单独的管理模块中进行管理。
+
+VerificationBatchTasks (号码确认批处理任务表) (新)
+描述: 存储号码确认流程的批处理任务信息。
+
+id (VARCHAR(36), PK, NOT NULL) - 批处理任务的唯一 ID (UUID)
+status (VARCHAR(50), NOT NULL, INDEX) - 任务状态 (例如: 'Pending', 'InProgress', 'Completed', 'CompletedWithErrors', 'Failed')
+totalEmployeesToProcess (INT, NOT NULL) - 此批任务需要处理的总员工数
+tokensGeneratedCount (INT, NOT NULL, DEFAULT 0) - 已成功生成令牌的员工数
+emailsAttemptedCount (INT, NOT NULL, DEFAULT 0) - 尝试发送邮件的次数
+emailsSucceededCount (INT, NOT NULL, DEFAULT 0) - 成功发送邮件的次数
+emailsFailedCount (INT, NOT NULL, DEFAULT 0) - 发送邮件失败的次数
+errorSummary (TEXT, NULL) - 错误概要 (例如，JSON 字符串化的 EmailFailureDetail 数组)
+requestedScopeType (VARCHAR(50), NOT NULL) - 请求的范围类型 (例如: 'all_users', 'department', 'employee_ids')
+requestedScopeValues (TEXT, NULL) - 请求的范围值 (例如，部门名称或员工 ID 的 JSON 数组字符串)
+requestedDurationDays (INT, NOT NULL) - 请求的令牌有效期天数
+createdAt (TIMESTAMP, NOT NULL, autoCreateTime) - 创建时间 (由 GORM 自动管理)
+updatedAt (TIMESTAMP, NOT NULL, autoUpdateTime) - 更新时间 (由 GORM 自动管理)
+deletedAt (TIMESTAMP, NULL, INDEX) - 软删除时间 (由 GORM 自动管理)
 
 5. 关键业务逻辑点
 
@@ -541,29 +703,32 @@ API 认证: 确保所有敏感 API 都受到 JWT 或类似机制的保护。
    │ └── main.go # 应用主入口，启动 HTTP 服务器
    ├── configs/ # (建议) 配置文件目录 (例如 config.yaml)
    ├── internal/
-   │ ├── auth/ # (建议) 存放认证授权相关逻辑 (JWT 生成、校验等)
+   │ ├── auth/ # (建议) 存放认证授权相关逻辑 (JWT 生成、校验、中间件等)
    │ ├── handlers/ # HTTP 请求处理器 (Controller 层)
    │ │ ├── auth_handler.go # 处理 /api/v1/auth 相关请求
-   │ │ ├── employee_handler.go # 处理 /api/v1/employees 相关请求
-   │ │ ├── mobilenumber_handler.go # 处理 /api/v1/mobilenumbers 相关请求
-   │ │ └── import_handler.go # 处理 /api/v1/import 相关请求
+   │ │ ├── employee_handler.go # 处理 /api/v1/employees 相关请求 (包含员工数据导入)
+   │ │ ├── mobilenumber_handler.go # 处理 /api/v1/mobilenumbers 相关请求 (包含号码数据导入)
+   │ │ ├── verification_handler.go # 处理 /api/v1/verification 相关请求
+   │ │ └── common_types.go # API 层通用的请求/响应结构体
    │ ├── models/ # 数据模型 (对应数据库表和 API 请求/响应体)
    │ │ ├── user.go # 管理员用户模型 (Users)
    │ │ ├── employee.go # 员工模型 (Employees)
    │ │ ├── mobilenumber.go # 手机号码模型 (MobileNumbers)
-   │ │ └── number_usage_history.go # 号码使用历史模型 (NumberUsageHistory)
+   │ │ ├── number_usage_history.go # 号码使用历史模型 (NumberUsageHistory)
+   │ │ ├── verification.go # 号码确认流程相关模型 (VerificationToken, VerificationBatchTask 等)
+   │ │ └── verification_submission_log.go # 号码确认提交日志模型
    │ ├── repositories/ # (建议) 数据存储库层 (封装数据库操作)
    │ │ ├── user_repository.go
    │ │ ├── employee_repository.go
    │ │ ├── mobilenumber_repository.go
-   │ │ └── number_usage_history_repository.go
+   │ │ ├── number_usage_history_repository.go
+   │ │ └── verification_repository.go # (建议) 处理验证流程相关的数据存取
    │ ├── routes/ # API 路由定义
    │ │ └── router.go # 配置 Gin 路由，将 URL 映射到 handlers
    │ └── services/ # 业务逻辑服务层
-   │ ├── auth_service.go # 用户认证服务
-   │ ├── employee_service.go # 员工管理服务
-   │ ├── mobilenumber_service.go # 手机号码管理服务
-   │ └── import_service.go # 数据导入服务
+   │ ├── employee_service.go # 员工管理服务 (包含员工数据导入逻辑)
+   │ ├── mobilenumber_service.go # 手机号码管理服务 (包含号码数据导入逻辑)
+   │ └── verification_service.go # 号码确认流程服务
    ├── migrations/ # (建议) 数据库迁移脚本
    │ └── 001_create_initial_tables.sql # 初始化数据库表的 SQL 脚本
    ├── pkg/

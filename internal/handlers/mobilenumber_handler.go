@@ -13,7 +13,7 @@ import (
 	"github.com/phone_management/internal/models"
 	"github.com/phone_management/internal/repositories" // 用于判断 ErrPhoneNumberExists
 	"github.com/phone_management/internal/services"
-	"github.com/phone_management/pkg/utils" // 新增导入
+	"github.com/phone_management/pkg/utils"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
 )

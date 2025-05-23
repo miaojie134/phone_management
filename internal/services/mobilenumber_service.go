@@ -12,11 +12,7 @@ import (
 // ErrMobileNumberNotFound 表示手机号码未找到的错误
 var ErrMobileNumberNotFound = errors.New("手机号码未找到")
 
-// 新增错误定义
-// var ErrInvalidMobileNumberFormat = errors.New("手机号码必须是11位数字")
-// var ErrInvalidMobileNumberPrefix = errors.New("手机号码必须以'1'开头")
-
-// 新增与办卡人姓名解析相关的错误
+// 错误定义
 var ErrApplicantNameNotFound = errors.New("办卡人姓名未找到")
 var ErrApplicantNameNotUnique = errors.New("办卡人姓名存在重名，无法唯一确定员工，请在系统中确保该姓名唯一或联系管理员处理")
 
@@ -31,8 +27,8 @@ type MobileNumberService interface {
 	// 第一个参数从 numberID uint 修改为 phoneNumber string
 	AssignMobileNumber(phoneNumber string, employeeBusinessID string, assignmentDate time.Time, purpose string) (*models.MobileNumber, error)
 	// UnassignMobileNumber(numberID uint, reclaimDate time.Time) (*models.MobileNumber, error) // 旧方法
-	UnassignMobileNumberByPhoneNumber(phoneNumber string, reclaimDate time.Time) (*models.MobileNumber, error) // 新方法
-	ResolveApplicantNameToID(applicantName string) (string, error)                                             // 新增方法
+	UnassignMobileNumberByPhoneNumber(phoneNumber string, reclaimDate time.Time) (*models.MobileNumber, error) //
+	ResolveApplicantNameToID(applicantName string) (string, error)                                             //
 }
 
 // mobileNumberService 是 MobileNumberService 的实现

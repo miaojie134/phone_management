@@ -21,13 +21,7 @@ var ErrPhoneNumberExists = errors.New("手机号码已存在")
 // ErrEmailExists 表示邮箱已存在 (服务层错误)
 var ErrEmailExists = errors.New("邮箱已存在")
 
-// 移除服务层特定的手机号格式错误，将使用 utils 中的定义
-// var ErrInvalidPhoneNumberFormat = errors.New("无效的手机号码格式")
-// var ErrInvalidPhoneNumberPrefix = errors.New("无效的手机号码前缀，必须以1开头")
-
-var ErrEmployeeNameNotFound = errors.New("按姓名未找到员工记录") // 新增错误
-
-// isNumeric 辅助函数已移至 pkg/utils/validator.go
+var ErrEmployeeNameNotFound = errors.New("按姓名未找到员工记录")
 
 // EmployeeService 定义了员工服务的接口
 type EmployeeService interface {
@@ -36,7 +30,7 @@ type EmployeeService interface {
 	GetEmployeeDetailByEmployeeID(employeeID string) (*models.EmployeeDetailResponse, error)
 	GetEmployeeByEmployeeID(employeeID string) (*models.Employee, error)
 	UpdateEmployee(employeeID string, payload models.UpdateEmployeePayload) (*models.Employee, error)
-	GetEmployeesByFullName(fullName string) ([]*models.Employee, error) // 新增方法
+	GetEmployeesByFullName(fullName string) ([]*models.Employee, error)
 }
 
 // employeeService 是 EmployeeService 的实现

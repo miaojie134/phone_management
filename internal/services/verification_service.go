@@ -55,10 +55,10 @@ type VerificationService interface {
 type verificationService struct {
 	employeeRepo          repositories.EmployeeRepository
 	verificationTokenRepo repositories.VerificationTokenRepository
-	batchTaskRepo         repositories.VerificationBatchTaskRepository     // 新增批处理任务仓库
-	mobileNumberRepo      repositories.MobileNumberRepository              // 新增手机号码仓库
-	userReportedIssueRepo repositories.UserReportedIssueRepository         // 新增用户报告问题仓库
-	submissionLogRepo     repositories.VerificationSubmissionLogRepository // 新增验证提交日志仓库
+	batchTaskRepo         repositories.VerificationBatchTaskRepository     // 批处理任务仓库
+	mobileNumberRepo      repositories.MobileNumberRepository              // 手机号码仓库
+	userReportedIssueRepo repositories.UserReportedIssueRepository         // 用户报告问题仓库
+	submissionLogRepo     repositories.VerificationSubmissionLogRepository // 验证提交日志仓库
 	appConfig             *configs.Configuration
 	db                    *gorm.DB
 }

@@ -47,25 +47,25 @@ func (VerificationToken) TableName() string {
 type VerificationBatchTaskStatus string
 
 const (
-	BatchTaskStatusPending             VerificationBatchTaskStatus = "Pending"             // 任务已创建，等待处理
-	BatchTaskStatusInProgress          VerificationBatchTaskStatus = "InProgress"          // 任务正在处理中
-	BatchTaskStatusCompleted           VerificationBatchTaskStatus = "Completed"           // 任务成功完成
-	BatchTaskStatusCompletedWithErrors VerificationBatchTaskStatus = "CompletedWithErrors" // 任务完成，但有部分失败
-	BatchTaskStatusFailed              VerificationBatchTaskStatus = "Failed"              // 任务未能成功发起或执行（例如，初始查找员工就失败）
+	BatchTaskStatusPending             VerificationBatchTaskStatus = "Pending"
+	BatchTaskStatusInProgress          VerificationBatchTaskStatus = "InProgress"
+	BatchTaskStatusCompleted           VerificationBatchTaskStatus = "Completed"
+	BatchTaskStatusCompletedWithErrors VerificationBatchTaskStatus = "CompletedWithErrors"
+	BatchTaskStatusFailed              VerificationBatchTaskStatus = "Failed"
 )
 
 // VerificationBatchTask 代表一个号码验证的批处理任务
 type VerificationBatchTask struct {
-	ID                      string                      `json:"id" gorm:"type:varchar(36);primaryKey"` // 使用 UUID 作为主键
+	ID                      string                      `json:"id" gorm:"type:varchar(36);primaryKey"`
 	Status                  VerificationBatchTaskStatus `json:"status" gorm:"type:varchar(50);not null;index"`
 	TotalEmployeesToProcess int                         `json:"totalEmployeesToProcess" gorm:"not null"`
 	TokensGeneratedCount    int                         `json:"tokensGeneratedCount" gorm:"not null;default:0"`
 	EmailsAttemptedCount    int                         `json:"emailsAttemptedCount" gorm:"not null;default:0"`
 	EmailsSucceededCount    int                         `json:"emailsSucceededCount" gorm:"not null;default:0"`
 	EmailsFailedCount       int                         `json:"emailsFailedCount" gorm:"not null;default:0"`
-	ErrorSummary            *string                     `json:"errorSummary,omitempty" gorm:"type:text"` // 存储JSON数组字符串或其他格式的错误概要
+	ErrorSummary            *string                     `json:"errorSummary,omitempty" gorm:"type:text"`
 	RequestedScopeType      VerificationScopeType       `json:"requestedScopeType" gorm:"type:varchar(50)"`
-	RequestedScopeValues    *string                     `json:"requestedScopeValues,omitempty" gorm:"type:text"` // 例如 JSON 数组字符串
+	RequestedScopeValues    *string                     `json:"requestedScopeValues,omitempty" gorm:"type:text"`
 	RequestedDurationDays   int                         `json:"requestedDurationDays"`
 	CreatedAt               time.Time                   `json:"createdAt" gorm:"autoCreateTime"`
 	UpdatedAt               time.Time                   `json:"updatedAt" gorm:"autoUpdateTime"`
@@ -86,7 +86,6 @@ func (task *VerificationBatchTask) BeforeCreate(tx *gorm.DB) (err error) {
 }
 
 // EmailFailureDetail 用于在 ErrorSummary 中记录单个邮件发送失败的详情
-// 可以考虑将 ErrorSummary 存储为 []EmailFailureDetail 的 JSON 字符串
 type EmailFailureDetail struct {
 	EmployeeID   string `json:"employeeId"`
 	EmployeeName string `json:"employeeName"`
@@ -94,20 +93,20 @@ type EmailFailureDetail struct {
 	Reason       string `json:"reason"`
 }
 
-// =========== 验证结果提交相关 ===========
+// =========== 验证结果提交相关 (API DTOs) ===========
 
 // VerifiedNumber 表示用户确认的号码信息
 type VerifiedNumber struct {
 	MobileNumberId uint    `json:"mobileNumberId" binding:"required"`
-	Action         string  `json:"action" binding:"required,oneof=confirm_usage report_issue"` // confirm_usage, report_issue
-	Purpose        *string `json:"purpose,omitempty"`                                          // 用户确认或报告问题时可提供的号码用途
+	Action         string  `json:"action" binding:"required,oneof=confirm_usage report_issue"`
+	Purpose        *string `json:"purpose,omitempty"`
 	UserComment    string  `json:"userComment,omitempty"`
 }
 
 // UnlistedNumber 表示用户报告的未在系统中列出的号码
 type UnlistedNumber struct {
 	PhoneNumber string  `json:"phoneNumber" binding:"required,len=11,numeric"`
-	Purpose     *string `json:"purpose" binding:"required,max=255"` // 用户报告该号码的用途
+	Purpose     *string `json:"purpose" binding:"required,max=255"`
 	UserComment string  `json:"userComment,omitempty"`
 }
 
@@ -117,14 +116,16 @@ type VerificationSubmission struct {
 	UnlistedNumbersReported []UnlistedNumber `json:"unlistedNumbersReported,omitempty" binding:"omitempty,dive"`
 }
 
+// =========== 用户获取验证信息 (API DTOs) ===========
+
 // VerificationPhoneNumber 表示验证流程中的手机号码信息
 type VerificationPhoneNumber struct {
 	ID          uint    `json:"id"`
 	PhoneNumber string  `json:"phoneNumber"`
 	Department  string  `json:"department"`
-	Purpose     *string `json:"purpose,omitempty"`     // 号码用途
-	Status      string  `json:"status"`                // pending, confirmed, reported
-	UserComment *string `json:"userComment,omitempty"` // 用户报告问题时的评论
+	Purpose     *string `json:"purpose,omitempty"`
+	Status      string  `json:"status"`
+	UserComment *string `json:"userComment,omitempty"`
 }
 
 // VerificationInfo 表示验证信息的响应结构
@@ -136,31 +137,91 @@ type VerificationInfo struct {
 	ExpiresAt                  time.Time                    `json:"expiresAt"`
 }
 
-// ReportedUnlistedNumberInfo 表示用户已报告的未列出号码的信息
+// ReportedUnlistedNumberInfo 表示用户已报告的未列出号码的信息 (用于 VerificationInfo)
 type ReportedUnlistedNumberInfo struct {
 	PhoneNumber string    `json:"phoneNumber"`
 	UserComment string    `json:"userComment,omitempty"`
-	Purpose     *string   `json:"purpose,omitempty"` // 新增字段：用户报告该未列出号码时的用途
+	Purpose     *string   `json:"purpose,omitempty"`
 	ReportedAt  time.Time `json:"reportedAt"`
 }
 
-// PendingUserDetail 表示未响应确认的用户详情
+// =========== 管理员视图和日志相关 (API DTOs & Log Model) ===========
+
+// PendingUserDetail 表示未响应确认的用户详情 (用于 PhoneVerificationStatusResponse)
 type PendingUserDetail struct {
-	EmployeeID string     `json:"employeeId"`          // 员工业务工号
-	FullName   string     `json:"fullName"`            // 员工姓名
-	Email      *string    `json:"email,omitempty"`     // 员工邮箱
-	TokenID    uint       `json:"tokenId,omitempty"`   // 令牌ID（可选，用于内部处理）
-	ExpiresAt  *time.Time `json:"expiresAt,omitempty"` // 令牌过期时间（可选）
+	EmployeeID string     `json:"employeeId"`
+	FullName   string     `json:"fullName"`
+	Email      *string    `json:"email,omitempty"`
+	TokenID    uint       `json:"tokenId,omitempty"`
+	ExpiresAt  *time.Time `json:"expiresAt,omitempty"`
 }
 
-// ReportedIssueDetail 表示用户报告的号码问题详情
+// ReportedIssueDetail 表示用户报告的号码问题详情 (用于 PhoneVerificationStatusResponse)
 type ReportedIssueDetail struct {
-	IssueID           uint      `json:"issueId,omitempty"`           // 问题ID（可选，用于内部处理）
-	PhoneNumber       string    `json:"phoneNumber"`                 // 手机号码
-	ReportedBy        string    `json:"reportedBy"`                  // 报告人姓名
-	Comment           string    `json:"comment"`                     // 用户备注
-	Purpose           *string   `json:"purpose,omitempty"`           // 报告的用途
-	OriginalStatus    string    `json:"originalStatus"`              // 号码原始状态
-	ReportedAt        time.Time `json:"reportedAt"`                  // 报告时间
-	AdminActionStatus string    `json:"adminActionStatus,omitempty"` // 管理员处理状态
+	IssueID           uint      `json:"issueId,omitempty"`
+	PhoneNumber       string    `json:"phoneNumber"`
+	ReportedBy        string    `json:"reportedBy"`
+	Comment           string    `json:"comment"`
+	Purpose           *string   `json:"purpose,omitempty"`
+	OriginalStatus    string    `json:"originalStatus"`
+	ReportedAt        time.Time `json:"reportedAt"`
+	AdminActionStatus string    `json:"adminActionStatus,omitempty"`
+}
+
+// VerificationActionType 定义了验证动作的类型
+type VerificationActionType string
+
+const (
+	ActionConfirmUsage   VerificationActionType = "confirm_usage"
+	ActionReportIssue    VerificationActionType = "report_issue"
+	ActionReportUnlisted VerificationActionType = "report_unlisted"
+)
+
+// VerificationSubmissionLog 表示号码验证提交的日志记录 (数据库表模型)
+type VerificationSubmissionLog struct {
+	ID                  uint                   `gorm:"primaryKey;autoIncrement;not null"`
+	EmployeeID          string                 `gorm:"column:employee_id;not null;size:10;index"`
+	VerificationTokenID uint                   `gorm:"column:verification_token_id;index"`
+	MobileNumberID      *uint                  `gorm:"column:mobile_number_id;index"`
+	PhoneNumber         string                 `gorm:"column:phone_number;size:20;index"`
+	ActionType          VerificationActionType `gorm:"column:action_type;type:varchar(50);not null;index"`
+	Purpose             *string                `gorm:"column:purpose;type:varchar(255)"`
+	UserComment         *string                `gorm:"column:user_comment;type:text"`
+	CreatedAt           time.Time              `gorm:"column:created_at;not null;autoCreateTime;index"`
+	UpdatedAt           time.Time              `gorm:"column:updated_at;not null;autoUpdateTime"`
+	DeletedAt           gorm.DeletedAt         `gorm:"index"`
+}
+
+// TableName 指定 VerificationSubmissionLog 模型对应的数据库表名
+func (VerificationSubmissionLog) TableName() string {
+	return "verification_submissions_log"
+}
+
+// PhoneVerificationStatusResponse 表示以手机号码维度统计的管理员视图响应结构 (API DTO)
+type PhoneVerificationStatusResponse struct {
+	Summary         PhoneVerificationSummary     `json:"summary"`
+	ConfirmedPhones []ConfirmedPhoneDetail       `json:"confirmedPhones,omitempty"`
+	PendingUsers    []PendingUserDetail          `json:"pendingUsers,omitempty"`    // Reuses PendingUserDetail
+	ReportedIssues  []ReportedIssueDetail        `json:"reportedIssues,omitempty"`  // Reuses ReportedIssueDetail
+	UnlistedNumbers []ReportedUnlistedNumberInfo `json:"unlistedNumbers,omitempty"` // Reuses ReportedUnlistedNumberInfo
+}
+
+// PhoneVerificationSummary 表示以手机号码维度统计的摘要 (用于 PhoneVerificationStatusResponse)
+type PhoneVerificationSummary struct {
+	TotalPhonesCount         int `json:"totalPhonesCount"`
+	ConfirmedPhonesCount     int `json:"confirmedPhonesCount"`
+	ReportedIssuesCount      int `json:"reportedIssuesCount"`
+	PendingPhonesCount       int `json:"pendingPhonesCount"`
+	NewlyReportedPhonesCount int `json:"newlyReportedPhonesCount"`
+}
+
+// ConfirmedPhoneDetail 表示已确认使用的手机号码详情 (用于 PhoneVerificationStatusResponse)
+type ConfirmedPhoneDetail struct {
+	ID          uint      `json:"id"`
+	PhoneNumber string    `json:"phoneNumber"`
+	Department  string    `json:"department,omitempty"`
+	CurrentUser string    `json:"currentUser"`
+	Purpose     *string   `json:"purpose,omitempty"`
+	ConfirmedBy string    `json:"confirmedBy"`
+	ConfirmedAt time.Time `json:"confirmedAt"`
 }
