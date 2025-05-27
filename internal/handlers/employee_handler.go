@@ -230,7 +230,7 @@ func (h *EmployeeHandler) GetEmployeeByID(c *gin.Context) {
 
 // UpdateEmployee godoc
 // @Summary 更新指定业务工号的员工信息
-// @Description 根据员工业务工号更新员工的部门、入职日期、在职状态或离职日期。所有字段都是可选的，至少需要提供一个字段进行更新。入职日期和离职日期格式为 YYYY-MM-DD。
+// @Description 根据员工业务工号更新员工的部门、入职日期、在职状态或离职日期。所有字段都是可选的，至少需要提供一个字段进行更新。入职日期和离职日期格式为 YYYY-MM-DD。在职状态允许值为 'Active' 或 'Departed'。
 // @Tags Employees
 // @Accept json
 // @Produce json

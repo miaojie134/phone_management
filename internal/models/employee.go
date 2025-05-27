@@ -17,7 +17,7 @@ type Employee struct {
 	PhoneNumber      *string        `json:"phoneNumber,omitempty" gorm:"column:phone_number;size:11;uniqueIndex:idx_phone_number_not_deleted"` // 员工手机号码, 11位, 可选, 唯一 (NULLS NOT DISTINCT)
 	Email            *string        `json:"email,omitempty" gorm:"column:email;size:255;uniqueIndex:idx_email_not_deleted"`                    // 员工邮箱, 可选, 唯一 (NULLS NOT DISTINCT)
 	Department       *string        `json:"department,omitempty" gorm:"column:department;size:255"`                                            // 部门
-	EmploymentStatus string         `json:"employmentStatus" gorm:"column:employment_status;not null;default:'Active';size:50"`                // 在职状态 (例如: 'Active', 'Departed')
+	EmploymentStatus string         `json:"employmentStatus" gorm:"column:employment_status;not null;default:'Active';size:50"`                // 在职状态 ('Active', 'Departed')
 	HireDate         *time.Time     `json:"hireDate,omitempty" gorm:"column:hire_date;type:date"`                                              // 入职日期
 	TerminationDate  *time.Time     `json:"terminationDate,omitempty" gorm:"column:termination_date;type:date"`                                // 离职日期
 	CreatedAt        time.Time      `json:"createdAt" gorm:"column:created_at;not null;autoCreateTime"`
@@ -86,7 +86,7 @@ type EmployeeDetailResponse struct {
 // 这个结构体用于API层的数据绑定和校验，并传递给服务层。
 type UpdateEmployeePayload struct {
 	Department       *string `json:"department,omitempty" binding:"omitempty,max=255"`
-	EmploymentStatus *string `json:"employmentStatus,omitempty" binding:"omitempty,oneof=Active Inactive Departed"` // 校验允许的值
-	HireDate         *string `json:"hireDate,omitempty" binding:"omitempty,datetime=2006-01-02"`                    // 入职日期，格式 YYYY-MM-DD
-	TerminationDate  *string `json:"terminationDate,omitempty" binding:"omitempty,datetime=2006-01-02"`             // 日期格式 YYYY-MM-DD
+	EmploymentStatus *string `json:"employmentStatus,omitempty" binding:"omitempty,oneof=Active Departed"` // 校验允许的值
+	HireDate         *string `json:"hireDate,omitempty" binding:"omitempty,datetime=2006-01-02"`           // 入职日期，格式 YYYY-MM-DD
+	TerminationDate  *string `json:"terminationDate,omitempty" binding:"omitempty,datetime=2006-01-02"`    // 日期格式 YYYY-MM-DD
 }

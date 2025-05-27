@@ -432,7 +432,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "根据员工业务工号更新员工的部门、入职日期、在职状态或离职日期。所有字段都是可选的，至少需要提供一个字段进行更新。入职日期和离职日期格式为 YYYY-MM-DD。",
+                "description": "根据员工业务工号更新员工的部门、入职日期、在职状态或离职日期。所有字段都是可选的，至少需要提供一个字段进行更新。入职日期和离职日期格式为 YYYY-MM-DD。在职状态允许值为 'Active' 或 'Departed'。",
                 "consumes": [
                     "application/json"
                 ],
@@ -1715,7 +1715,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "employmentStatus": {
-                    "description": "在职状态 (例如: 'Active', 'Departed')",
+                    "description": "在职状态 ('Active', 'Departed')",
                     "type": "string"
                 },
                 "fullName": {
@@ -2177,7 +2177,6 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "Active",
-                        "Inactive",
                         "Departed"
                     ]
                 },
@@ -2398,6 +2397,8 @@ var SwaggerInfo = &swag.Spec{
 	Description:      "",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
+	// LeftDelim:        "{{",
+	// RightDelim:       "}}",
 }
 
 func init() {
