@@ -35,7 +35,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.LoginRequest"
+                            "$ref": "#/definitions/handlers.LoginRequest"
                         }
                     }
                 ],
@@ -45,13 +45,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                                    "$ref": "#/definitions/utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.LoginResponse"
+                                            "$ref": "#/definitions/handlers.LoginResponse"
                                         }
                                     }
                                 }
@@ -61,19 +61,19 @@ const docTemplate = `{
                     "400": {
                         "description": "请求参数错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "无效的用户名或密码",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "无法生成Token",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     }
                 }
@@ -101,13 +101,13 @@ const docTemplate = `{
                     "200": {
                         "description": "成功登出",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                            "$ref": "#/definitions/utils.SuccessResponse"
                         }
                     },
                     "400": {
                         "description": "错误的请求 (例如，上下文中缺少JTI或EXP)",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     }
                 }
@@ -178,13 +178,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                                    "$ref": "#/definitions/utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.PagedEmployeesData"
+                                            "$ref": "#/definitions/handlers.PagedEmployeesData"
                                         }
                                     }
                                 }
@@ -194,19 +194,19 @@ const docTemplate = `{
                     "400": {
                         "description": "请求参数错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "未认证或 Token 无效/过期",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     }
                 }
@@ -217,7 +217,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "从请求体绑定数据并验证，数据保存到数据库。员工工号需唯一。",
+                "description": "从请求体绑定数据并验证，数据保存到数据库。员工工号由系统自动生成。支持设置可选的入职日期（格式：YYYY-MM-DD）。",
                 "consumes": [
                     "application/json"
                 ],
@@ -230,12 +230,12 @@ const docTemplate = `{
                 "summary": "新增一个员工",
                 "parameters": [
                     {
-                        "description": "员工信息",
+                        "description": "员工信息。包含必填的姓名，可选的手机号、邮箱、部门和入职日期",
                         "name": "employee",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.CreateEmployeePayload"
+                            "$ref": "#/definitions/handlers.CreateEmployeePayload"
                         }
                     }
                 ],
@@ -245,13 +245,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                                    "$ref": "#/definitions/utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_phone_management_internal_models.Employee"
+                                            "$ref": "#/definitions/models.Employee"
                                         }
                                     }
                                 }
@@ -259,27 +259,27 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "请求参数错误或数据校验失败",
+                        "description": "请求参数错误、数据校验失败或入职日期格式无效",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "未认证或 Token 无效/过期",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "409": {
-                        "description": "员工工号已存在",
+                        "description": "手机号或邮箱已存在",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     }
                 }
@@ -292,7 +292,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "通过上传 CSV 文件批量导入员工。CSV文件应包含表头：fullName,phoneNumber,email,department。顺序必须一致，表头自身也会被计入行号。",
+                "description": "通过上传 CSV 文件批量导入员工。CSV文件必须包含表头：fullName,phoneNumber,email,department,hireDate。列顺序必须一致。fullName为必填，其他字段可为空。hireDate格式为YYYY-MM-DD。支持GBK和UTF-8编码。",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -306,7 +306,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "file",
-                        "description": "包含员工数据的 CSV 文件 (表头: fullName,phoneNumber,email,department)",
+                        "description": "包含员工数据的 CSV 文件。表头: fullName,phoneNumber,email,department,hireDate",
                         "name": "file",
                         "in": "formData",
                         "required": true
@@ -314,17 +314,17 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "导入结果摘要",
+                        "description": "导入结果摘要，包含成功和失败的详细信息",
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                                    "$ref": "#/definitions/utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.BatchImportResponse"
+                                            "$ref": "#/definitions/handlers.BatchImportResponse"
                                         }
                                     }
                                 }
@@ -332,21 +332,21 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "请求错误，例如文件未提供、文件格式错误或CSV表头不匹配",
+                        "description": "请求错误，例如文件未提供、文件格式错误、CSV表头不匹配或数据格式错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "未认证或 Token 无效/过期",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     }
                 }
@@ -385,13 +385,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                                    "$ref": "#/definitions/utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_phone_management_internal_models.EmployeeDetailResponse"
+                                            "$ref": "#/definitions/models.EmployeeDetailResponse"
                                         }
                                     }
                                 }
@@ -401,25 +401,25 @@ const docTemplate = `{
                     "400": {
                         "description": "无效的员工工号格式 (保留，以防未来有格式校验)",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "未认证或 Token 无效/过期",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "404": {
                         "description": "员工未找到",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     }
                 }
@@ -432,7 +432,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "根据员工业务工号更新员工的部门、在职状态或离职日期。",
+                "description": "根据员工业务工号更新员工的部门、入职日期、在职状态或离职日期。所有字段都是可选的，至少需要提供一个字段进行更新。入职日期和离职日期格式为 YYYY-MM-DD。",
                 "consumes": [
                     "application/json"
                 ],
@@ -452,12 +452,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "要更新的员工字段",
+                        "description": "要更新的员工字段。可包含部门、入职日期、在职状态、离职日期",
                         "name": "employeeUpdate",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_internal_models.UpdateEmployeePayload"
+                            "$ref": "#/definitions/models.UpdateEmployeePayload"
                         }
                     }
                 ],
@@ -467,13 +467,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                                    "$ref": "#/definitions/utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_phone_management_internal_models.Employee"
+                                            "$ref": "#/definitions/models.Employee"
                                         }
                                     }
                                 }
@@ -481,27 +481,27 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "请求参数错误或数据校验失败",
+                        "description": "请求参数错误、数据校验失败、日期格式无效或业务逻辑错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "未认证或 Token 无效/过期",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "404": {
                         "description": "员工未找到",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     }
                 }
@@ -577,13 +577,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                                    "$ref": "#/definitions/utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.PagedMobileNumbersData"
+                                            "$ref": "#/definitions/handlers.PagedMobileNumbersData"
                                         }
                                     }
                                 }
@@ -593,13 +593,13 @@ const docTemplate = `{
                     "400": {
                         "description": "请求参数错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     }
                 }
@@ -628,7 +628,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.CreateMobileNumberPayload"
+                            "$ref": "#/definitions/handlers.CreateMobileNumberPayload"
                         }
                     }
                 ],
@@ -638,13 +638,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                                    "$ref": "#/definitions/utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_phone_management_internal_models.MobileNumber"
+                                            "$ref": "#/definitions/models.MobileNumber"
                                         }
                                     }
                                 }
@@ -654,25 +654,25 @@ const docTemplate = `{
                     "400": {
                         "description": "请求参数错误或数据校验失败",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "未认证或 Token 无效/过期",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "409": {
                         "description": "手机号码已存在",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     }
                 }
@@ -711,13 +711,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                                    "$ref": "#/definitions/utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.BatchImportMobileNumbersResponse"
+                                            "$ref": "#/definitions/handlers.BatchImportMobileNumbersResponse"
                                         }
                                     }
                                 }
@@ -727,19 +727,19 @@ const docTemplate = `{
                     "400": {
                         "description": "请求错误，例如文件未提供、文件格式错误或CSV表头不匹配",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "未认证或 Token 无效/过期",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     }
                 }
@@ -778,13 +778,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                                    "$ref": "#/definitions/utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_phone_management_internal_models.MobileNumberResponse"
+                                            "$ref": "#/definitions/models.MobileNumberResponse"
                                         }
                                     }
                                 }
@@ -794,19 +794,19 @@ const docTemplate = `{
                     "400": {
                         "description": "无效的手机号码格式 (保留，以防未来有格式校验)",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "404": {
                         "description": "号码未找到",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     }
                 }
@@ -844,7 +844,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_internal_models.MobileNumberAssignPayload"
+                            "$ref": "#/definitions/models.MobileNumberAssignPayload"
                         }
                     }
                 ],
@@ -854,13 +854,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                                    "$ref": "#/definitions/utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_phone_management_internal_models.MobileNumber"
+                                            "$ref": "#/definitions/models.MobileNumber"
                                         }
                                     }
                                 }
@@ -870,31 +870,31 @@ const docTemplate = `{
                     "400": {
                         "description": "请求参数错误 / 无效的日期格式 / 无效的手机号码格式\" // 更新了描述",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "未认证或 Token 无效/过期",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "404": {
                         "description": "手机号码或目标员工工号未找到",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "409": {
                         "description": "操作冲突 (例如：号码非闲置，员工非在职)",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     }
                 }
@@ -931,7 +931,7 @@ const docTemplate = `{
                         "name": "unassignPayload",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_internal_models.MobileNumberUnassignPayload"
+                            "$ref": "#/definitions/models.MobileNumberUnassignPayload"
                         }
                     }
                 ],
@@ -941,13 +941,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                                    "$ref": "#/definitions/utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_phone_management_internal_models.MobileNumber"
+                                            "$ref": "#/definitions/models.MobileNumber"
                                         }
                                     }
                                 }
@@ -957,31 +957,31 @@ const docTemplate = `{
                     "400": {
                         "description": "请求参数错误 / 无效的日期格式 / 无效的手机号码格式\" // 添加了无效手机号格式的说明",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "未认证或 Token 无效/过期",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "404": {
                         "description": "手机号码未找到",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "409": {
                         "description": "操作冲突 (例如：号码非在用状态，或未找到有效的分配记录)",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     }
                 }
@@ -1019,7 +1019,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_internal_models.MobileNumberUpdatePayload"
+                            "$ref": "#/definitions/models.MobileNumberUpdatePayload"
                         }
                     }
                 ],
@@ -1029,13 +1029,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                                    "$ref": "#/definitions/utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_phone_management_internal_models.MobileNumber"
+                                            "$ref": "#/definitions/models.MobileNumber"
                                         }
                                     }
                                 }
@@ -1045,25 +1045,25 @@ const docTemplate = `{
                     "400": {
                         "description": "请求参数错误或数据校验失败 / 没有提供任何更新字段 / 无效的手机号码格式\" // 更新了描述",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "未认证或 Token 无效/过期",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "404": {
                         "description": "号码未找到",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     }
                 }
@@ -1119,13 +1119,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                                    "$ref": "#/definitions/utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_phone_management_internal_models.PhoneVerificationStatusResponse"
+                                            "$ref": "#/definitions/models.PhoneVerificationStatusResponse"
                                         }
                                     }
                                 }
@@ -1135,19 +1135,19 @@ const docTemplate = `{
                     "400": {
                         "description": "请求参数错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "401": {
                         "description": "未授权",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     }
                 }
@@ -1183,13 +1183,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                                    "$ref": "#/definitions/utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_phone_management_internal_models.VerificationBatchTask"
+                                            "$ref": "#/definitions/models.VerificationBatchTask"
                                         }
                                     }
                                 }
@@ -1199,19 +1199,19 @@ const docTemplate = `{
                     "400": {
                         "description": "无效的批处理ID格式",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "404": {
                         "description": "批处理任务未找到",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     }
                 }
@@ -1242,13 +1242,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                                    "$ref": "#/definitions/utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/github_com_phone_management_internal_models.VerificationInfo"
+                                            "$ref": "#/definitions/models.VerificationInfo"
                                         }
                                     }
                                 }
@@ -1258,13 +1258,13 @@ const docTemplate = `{
                     "403": {
                         "description": "令牌无效或已过期",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     }
                 }
@@ -1295,7 +1295,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_handlers.InitiateVerificationRequest"
+                            "$ref": "#/definitions/handlers.InitiateVerificationRequest"
                         }
                     }
                 ],
@@ -1305,13 +1305,13 @@ const docTemplate = `{
                         "schema": {
                             "allOf": [
                                 {
-                                    "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                                    "$ref": "#/definitions/utils.SuccessResponse"
                                 },
                                 {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/internal_handlers.InitiateVerificationResponse"
+                                            "$ref": "#/definitions/handlers.InitiateVerificationResponse"
                                         }
                                     }
                                 }
@@ -1321,13 +1321,13 @@ const docTemplate = `{
                     "400": {
                         "description": "请求参数无效或错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     }
                 }
@@ -1360,7 +1360,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_internal_models.VerificationSubmission"
+                            "$ref": "#/definitions/models.VerificationSubmission"
                         }
                     }
                 ],
@@ -1368,25 +1368,25 @@ const docTemplate = `{
                     "200": {
                         "description": "提交成功",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.SuccessResponse"
+                            "$ref": "#/definitions/utils.SuccessResponse"
                         }
                     },
                     "400": {
                         "description": "请求参数无效",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "403": {
                         "description": "令牌无效或已过期",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     },
                     "500": {
                         "description": "服务器内部错误",
                         "schema": {
-                            "$ref": "#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse"
+                            "$ref": "#/definitions/utils.APIErrorResponse"
                         }
                     }
                 }
@@ -1394,7 +1394,279 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "github_com_phone_management_internal_models.ConfirmedPhoneDetail": {
+        "handlers.BatchImportErrorDetail": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "description": "错误原因",
+                    "type": "string"
+                },
+                "rowData": {
+                    "description": "可选，原始行数据",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "rowNumber": {
+                    "description": "CSV中的原始行号 (从1开始计数，包括表头)",
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.BatchImportMobileNumberErrorDetail": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "description": "错误原因",
+                    "type": "string"
+                },
+                "rowData": {
+                    "description": "可选，原始行数据",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "rowNumber": {
+                    "description": "CSV中的原始行号 (从1开始计数，包括表头)",
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.BatchImportMobileNumbersResponse": {
+            "type": "object",
+            "properties": {
+                "errorCount": {
+                    "type": "integer"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.BatchImportMobileNumberErrorDetail"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "successCount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.BatchImportResponse": {
+            "type": "object",
+            "properties": {
+                "errorCount": {
+                    "type": "integer"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.BatchImportErrorDetail"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "successCount": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.CreateEmployeePayload": {
+            "type": "object",
+            "required": [
+                "fullName"
+            ],
+            "properties": {
+                "department": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "email": {
+                    "description": "可选，需要是合法的email格式，最大长度255",
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "fullName": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "hireDate": {
+                    "description": "入职日期，可选，格式 YYYY-MM-DD",
+                    "type": "string"
+                },
+                "phoneNumber": {
+                    "description": "手机号：可选，但如果提供，必须是11位数字",
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.CreateMobileNumberPayload": {
+            "type": "object",
+            "required": [
+                "applicantEmployeeId",
+                "applicationDate",
+                "phoneNumber",
+                "status"
+            ],
+            "properties": {
+                "applicantEmployeeId": {
+                    "description": "改为 string，代表业务工号",
+                    "type": "string"
+                },
+                "applicationDate": {
+                    "type": "string"
+                },
+                "phoneNumber": {
+                    "type": "string",
+                    "maxLength": 50
+                },
+                "purpose": {
+                    "description": "号码用途，可选",
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "remarks": {
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "闲置",
+                        "在用",
+                        "待注销",
+                        "已注销",
+                        "待核实-办卡人离职"
+                    ]
+                },
+                "vendor": {
+                    "type": "string",
+                    "maxLength": 100
+                }
+            }
+        },
+        "handlers.InitiateVerificationRequest": {
+            "type": "object",
+            "required": [
+                "durationDays",
+                "scope"
+            ],
+            "properties": {
+                "durationDays": {
+                    "type": "integer",
+                    "maximum": 30,
+                    "minimum": 1
+                },
+                "scope": {
+                    "type": "string",
+                    "enum": [
+                        "all_users",
+                        "department",
+                        "employee_ids"
+                    ]
+                },
+                "scopeValues": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "handlers.InitiateVerificationResponse": {
+            "type": "object",
+            "properties": {
+                "batchId": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.LoginRequest": {
+            "type": "object",
+            "required": [
+                "password",
+                "username"
+            ],
+            "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.LoginResponse": {
+            "type": "object",
+            "properties": {
+                "token": {
+                    "type": "string"
+                },
+                "user": {
+                    "$ref": "#/definitions/handlers.UserInfo"
+                }
+            }
+        },
+        "handlers.PagedEmployeesData": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Employee"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/handlers.PaginationInfo"
+                }
+            }
+        },
+        "handlers.PagedMobileNumbersData": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.MobileNumberResponse"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/handlers.PaginationInfo"
+                }
+            }
+        },
+        "handlers.PaginationInfo": {
+            "type": "object",
+            "properties": {
+                "currentPage": {
+                    "type": "integer"
+                },
+                "pageSize": {
+                    "type": "integer"
+                },
+                "totalItems": {
+                    "type": "integer"
+                },
+                "totalPages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.UserInfo": {
+            "type": "object",
+            "properties": {
+                "role": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.ConfirmedPhoneDetail": {
             "type": "object",
             "properties": {
                 "confirmedAt": {
@@ -1420,7 +1692,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_phone_management_internal_models.Employee": {
+        "models.Employee": {
             "type": "object",
             "properties": {
                 "createdAt": {
@@ -1470,7 +1742,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_phone_management_internal_models.EmployeeDetailResponse": {
+        "models.EmployeeDetailResponse": {
             "type": "object",
             "properties": {
                 "createdAt": {
@@ -1492,7 +1764,7 @@ const docTemplate = `{
                     "description": "作为办卡人的号码列表",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_phone_management_internal_models.MobileNumberBasicInfo"
+                        "$ref": "#/definitions/models.MobileNumberBasicInfo"
                     }
                 },
                 "hireDate": {
@@ -1511,12 +1783,12 @@ const docTemplate = `{
                     "description": "作为当前使用人的号码列表",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_phone_management_internal_models.MobileNumberBasicInfo"
+                        "$ref": "#/definitions/models.MobileNumberBasicInfo"
                     }
                 }
             }
         },
-        "github_com_phone_management_internal_models.MobileNumber": {
+        "models.MobileNumber": {
             "type": "object",
             "required": [
                 "applicantEmployeeId",
@@ -1584,7 +1856,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_phone_management_internal_models.MobileNumberAssignPayload": {
+        "models.MobileNumberAssignPayload": {
             "type": "object",
             "required": [
                 "assignmentDate",
@@ -1606,7 +1878,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_phone_management_internal_models.MobileNumberBasicInfo": {
+        "models.MobileNumberBasicInfo": {
             "type": "object",
             "properties": {
                 "id": {
@@ -1620,7 +1892,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_phone_management_internal_models.MobileNumberResponse": {
+        "models.MobileNumberResponse": {
             "type": "object",
             "properties": {
                 "applicantEmployeeId": {
@@ -1675,7 +1947,7 @@ const docTemplate = `{
                     "description": "号码使用历史",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_phone_management_internal_models.NumberUsageHistory"
+                        "$ref": "#/definitions/models.NumberUsageHistory"
                     }
                 },
                 "vendor": {
@@ -1683,7 +1955,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_phone_management_internal_models.MobileNumberUnassignPayload": {
+        "models.MobileNumberUnassignPayload": {
             "type": "object",
             "properties": {
                 "reclaimDate": {
@@ -1691,7 +1963,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_phone_management_internal_models.MobileNumberUpdatePayload": {
+        "models.MobileNumberUpdatePayload": {
             "type": "object",
             "properties": {
                 "purpose": {
@@ -1719,7 +1991,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_phone_management_internal_models.NumberUsageHistory": {
+        "models.NumberUsageHistory": {
             "type": "object",
             "properties": {
                 "createdAt": {
@@ -1753,7 +2025,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_phone_management_internal_models.PendingUserDetail": {
+        "models.PendingUserDetail": {
             "type": "object",
             "properties": {
                 "email": {
@@ -1773,42 +2045,42 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_phone_management_internal_models.PhoneVerificationStatusResponse": {
+        "models.PhoneVerificationStatusResponse": {
             "type": "object",
             "properties": {
                 "confirmedPhones": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_phone_management_internal_models.ConfirmedPhoneDetail"
+                        "$ref": "#/definitions/models.ConfirmedPhoneDetail"
                     }
                 },
                 "pendingUsers": {
                     "description": "Reuses PendingUserDetail",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_phone_management_internal_models.PendingUserDetail"
+                        "$ref": "#/definitions/models.PendingUserDetail"
                     }
                 },
                 "reportedIssues": {
                     "description": "Reuses ReportedIssueDetail",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_phone_management_internal_models.ReportedIssueDetail"
+                        "$ref": "#/definitions/models.ReportedIssueDetail"
                     }
                 },
                 "summary": {
-                    "$ref": "#/definitions/github_com_phone_management_internal_models.PhoneVerificationSummary"
+                    "$ref": "#/definitions/models.PhoneVerificationSummary"
                 },
                 "unlistedNumbers": {
                     "description": "Reuses ReportedUnlistedNumberInfo",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_phone_management_internal_models.ReportedUnlistedNumberInfo"
+                        "$ref": "#/definitions/models.ReportedUnlistedNumberInfo"
                     }
                 }
             }
         },
-        "github_com_phone_management_internal_models.PhoneVerificationSummary": {
+        "models.PhoneVerificationSummary": {
             "type": "object",
             "properties": {
                 "confirmedPhonesCount": {
@@ -1828,7 +2100,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_phone_management_internal_models.ReportedIssueDetail": {
+        "models.ReportedIssueDetail": {
             "type": "object",
             "properties": {
                 "adminActionStatus": {
@@ -1857,7 +2129,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_phone_management_internal_models.ReportedUnlistedNumberInfo": {
+        "models.ReportedUnlistedNumberInfo": {
             "type": "object",
             "properties": {
                 "phoneNumber": {
@@ -1874,7 +2146,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_phone_management_internal_models.UnlistedNumber": {
+        "models.UnlistedNumber": {
             "type": "object",
             "required": [
                 "phoneNumber",
@@ -1893,7 +2165,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_phone_management_internal_models.UpdateEmployeePayload": {
+        "models.UpdateEmployeePayload": {
             "type": "object",
             "properties": {
                 "department": {
@@ -1909,13 +2181,17 @@ const docTemplate = `{
                         "Departed"
                     ]
                 },
+                "hireDate": {
+                    "description": "入职日期，格式 YYYY-MM-DD",
+                    "type": "string"
+                },
                 "terminationDate": {
                     "description": "日期格式 YYYY-MM-DD",
                     "type": "string"
                 }
             }
         },
-        "github_com_phone_management_internal_models.VerificationBatchTask": {
+        "models.VerificationBatchTask": {
             "type": "object",
             "properties": {
                 "createdAt": {
@@ -1944,13 +2220,13 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "requestedScopeType": {
-                    "$ref": "#/definitions/github_com_phone_management_internal_models.VerificationScopeType"
+                    "$ref": "#/definitions/models.VerificationScopeType"
                 },
                 "requestedScopeValues": {
                     "type": "string"
                 },
                 "status": {
-                    "$ref": "#/definitions/github_com_phone_management_internal_models.VerificationBatchTaskStatus"
+                    "$ref": "#/definitions/models.VerificationBatchTaskStatus"
                 },
                 "tokensGeneratedCount": {
                     "type": "integer"
@@ -1963,7 +2239,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_phone_management_internal_models.VerificationBatchTaskStatus": {
+        "models.VerificationBatchTaskStatus": {
             "type": "string",
             "enum": [
                 "Pending",
@@ -1980,7 +2256,7 @@ const docTemplate = `{
                 "BatchTaskStatusFailed"
             ]
         },
-        "github_com_phone_management_internal_models.VerificationInfo": {
+        "models.VerificationInfo": {
             "type": "object",
             "properties": {
                 "employeeId": {
@@ -1995,18 +2271,18 @@ const docTemplate = `{
                 "phoneNumbers": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_phone_management_internal_models.VerificationPhoneNumber"
+                        "$ref": "#/definitions/models.VerificationPhoneNumber"
                     }
                 },
                 "previouslyReportedUnlisted": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_phone_management_internal_models.ReportedUnlistedNumberInfo"
+                        "$ref": "#/definitions/models.ReportedUnlistedNumberInfo"
                     }
                 }
             }
         },
-        "github_com_phone_management_internal_models.VerificationPhoneNumber": {
+        "models.VerificationPhoneNumber": {
             "type": "object",
             "properties": {
                 "department": {
@@ -2029,7 +2305,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_phone_management_internal_models.VerificationScopeType": {
+        "models.VerificationScopeType": {
             "type": "string",
             "enum": [
                 "all_users",
@@ -2042,24 +2318,24 @@ const docTemplate = `{
                 "VerificationScopeEmployeeIDs"
             ]
         },
-        "github_com_phone_management_internal_models.VerificationSubmission": {
+        "models.VerificationSubmission": {
             "type": "object",
             "properties": {
                 "unlistedNumbersReported": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_phone_management_internal_models.UnlistedNumber"
+                        "$ref": "#/definitions/models.UnlistedNumber"
                     }
                 },
                 "verifiedNumbers": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_phone_management_internal_models.VerifiedNumber"
+                        "$ref": "#/definitions/models.VerifiedNumber"
                     }
                 }
             }
         },
-        "github_com_phone_management_internal_models.VerifiedNumber": {
+        "models.VerifiedNumber": {
             "type": "object",
             "required": [
                 "action",
@@ -2084,7 +2360,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_phone_management_pkg_utils.APIErrorResponse": {
+        "utils.APIErrorResponse": {
             "type": "object",
             "properties": {
                 "details": {},
@@ -2093,7 +2369,7 @@ const docTemplate = `{
                 }
             }
         },
-        "github_com_phone_management_pkg_utils.SuccessResponse": {
+        "utils.SuccessResponse": {
             "type": "object",
             "properties": {
                 "data": {
@@ -2105,274 +2381,6 @@ const docTemplate = `{
                 },
                 "status": {
                     "description": "例如 \"success\"",
-                    "type": "string"
-                }
-            }
-        },
-        "internal_handlers.BatchImportErrorDetail": {
-            "type": "object",
-            "properties": {
-                "reason": {
-                    "description": "错误原因",
-                    "type": "string"
-                },
-                "rowData": {
-                    "description": "可选，原始行数据",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "rowNumber": {
-                    "description": "CSV中的原始行号 (从1开始计数，包括表头)",
-                    "type": "integer"
-                }
-            }
-        },
-        "internal_handlers.BatchImportMobileNumberErrorDetail": {
-            "type": "object",
-            "properties": {
-                "reason": {
-                    "description": "错误原因",
-                    "type": "string"
-                },
-                "rowData": {
-                    "description": "可选，原始行数据",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "rowNumber": {
-                    "description": "CSV中的原始行号 (从1开始计数，包括表头)",
-                    "type": "integer"
-                }
-            }
-        },
-        "internal_handlers.BatchImportMobileNumbersResponse": {
-            "type": "object",
-            "properties": {
-                "errorCount": {
-                    "type": "integer"
-                },
-                "errors": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/internal_handlers.BatchImportMobileNumberErrorDetail"
-                    }
-                },
-                "message": {
-                    "type": "string"
-                },
-                "successCount": {
-                    "type": "integer"
-                }
-            }
-        },
-        "internal_handlers.BatchImportResponse": {
-            "type": "object",
-            "properties": {
-                "errorCount": {
-                    "type": "integer"
-                },
-                "errors": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/internal_handlers.BatchImportErrorDetail"
-                    }
-                },
-                "message": {
-                    "type": "string"
-                },
-                "successCount": {
-                    "type": "integer"
-                }
-            }
-        },
-        "internal_handlers.CreateEmployeePayload": {
-            "type": "object",
-            "required": [
-                "fullName"
-            ],
-            "properties": {
-                "department": {
-                    "type": "string",
-                    "maxLength": 255
-                },
-                "email": {
-                    "description": "可选，需要是合法的email格式，最大长度255",
-                    "type": "string",
-                    "maxLength": 255
-                },
-                "fullName": {
-                    "type": "string",
-                    "maxLength": 255
-                },
-                "phoneNumber": {
-                    "description": "手机号：可选，但如果提供，必须是11位数字",
-                    "type": "string"
-                }
-            }
-        },
-        "internal_handlers.CreateMobileNumberPayload": {
-            "type": "object",
-            "required": [
-                "applicantEmployeeId",
-                "applicationDate",
-                "phoneNumber",
-                "status"
-            ],
-            "properties": {
-                "applicantEmployeeId": {
-                    "description": "改为 string，代表业务工号",
-                    "type": "string"
-                },
-                "applicationDate": {
-                    "type": "string"
-                },
-                "phoneNumber": {
-                    "type": "string",
-                    "maxLength": 50
-                },
-                "purpose": {
-                    "description": "号码用途，可选",
-                    "type": "string",
-                    "maxLength": 255
-                },
-                "remarks": {
-                    "type": "string",
-                    "maxLength": 255
-                },
-                "status": {
-                    "type": "string",
-                    "enum": [
-                        "闲置",
-                        "在用",
-                        "待注销",
-                        "已注销",
-                        "待核实-办卡人离职"
-                    ]
-                },
-                "vendor": {
-                    "type": "string",
-                    "maxLength": 100
-                }
-            }
-        },
-        "internal_handlers.InitiateVerificationRequest": {
-            "type": "object",
-            "required": [
-                "durationDays",
-                "scope"
-            ],
-            "properties": {
-                "durationDays": {
-                    "type": "integer",
-                    "maximum": 30,
-                    "minimum": 1
-                },
-                "scope": {
-                    "type": "string",
-                    "enum": [
-                        "all_users",
-                        "department",
-                        "employee_ids"
-                    ]
-                },
-                "scopeValues": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                }
-            }
-        },
-        "internal_handlers.InitiateVerificationResponse": {
-            "type": "object",
-            "properties": {
-                "batchId": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_handlers.LoginRequest": {
-            "type": "object",
-            "required": [
-                "password",
-                "username"
-            ],
-            "properties": {
-                "password": {
-                    "type": "string"
-                },
-                "username": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_handlers.LoginResponse": {
-            "type": "object",
-            "properties": {
-                "token": {
-                    "type": "string"
-                },
-                "user": {
-                    "$ref": "#/definitions/internal_handlers.UserInfo"
-                }
-            }
-        },
-        "internal_handlers.PagedEmployeesData": {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_phone_management_internal_models.Employee"
-                    }
-                },
-                "pagination": {
-                    "$ref": "#/definitions/internal_handlers.PaginationInfo"
-                }
-            }
-        },
-        "internal_handlers.PagedMobileNumbersData": {
-            "type": "object",
-            "properties": {
-                "items": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/github_com_phone_management_internal_models.MobileNumberResponse"
-                    }
-                },
-                "pagination": {
-                    "$ref": "#/definitions/internal_handlers.PaginationInfo"
-                }
-            }
-        },
-        "internal_handlers.PaginationInfo": {
-            "type": "object",
-            "properties": {
-                "currentPage": {
-                    "type": "integer"
-                },
-                "pageSize": {
-                    "type": "integer"
-                },
-                "totalItems": {
-                    "type": "integer"
-                },
-                "totalPages": {
-                    "type": "integer"
-                }
-            }
-        },
-        "internal_handlers.UserInfo": {
-            "type": "object",
-            "properties": {
-                "role": {
-                    "type": "string"
-                },
-                "username": {
                     "type": "string"
                 }
             }

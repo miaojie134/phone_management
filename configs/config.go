@@ -21,7 +21,7 @@ type Configuration struct {
 const (
 	defaultJWTSecret       = "mobile"                // Default JWT secret, used if env var is not set.
 	envJWTSecretKey        = "JWT_SECRET_KEY"        // Environment variable name for the JWT secret.
-	defaultServerPort      = "8080"                  // Default server port.
+	defaultServerPort      = "8081"                  // Default server port.
 	envServerPortKey       = "SERVER_PORT"           // Environment variable name for the server port.
 	defaultFrontendBaseURL = "http://localhost:3000" // 默认前端基础URL
 	envFrontendBaseURLKey  = "FRONTEND_BASE_URL"     // 前端基础URL环境变量名

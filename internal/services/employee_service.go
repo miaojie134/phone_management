@@ -150,6 +150,18 @@ func (s *employeeService) UpdateEmployee(employeeID string, payload models.Updat
 		updates["department"] = *payload.Department
 	}
 
+	if payload.HireDate != nil {
+		if *payload.HireDate == "" {
+			updates["hire_date"] = nil
+		} else {
+			hireDate, err := time.Parse("2006-01-02", *payload.HireDate)
+			if err != nil {
+				return nil, errors.New("无效的入职日期格式: " + *payload.HireDate)
+			}
+			updates["hire_date"] = &hireDate
+		}
+	}
+
 	statusUpdated := false
 	if payload.EmploymentStatus != nil {
 		updates["employment_status"] = *payload.EmploymentStatus

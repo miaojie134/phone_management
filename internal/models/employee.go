@@ -87,5 +87,6 @@ type EmployeeDetailResponse struct {
 type UpdateEmployeePayload struct {
 	Department       *string `json:"department,omitempty" binding:"omitempty,max=255"`
 	EmploymentStatus *string `json:"employmentStatus,omitempty" binding:"omitempty,oneof=Active Inactive Departed"` // 校验允许的值
+	HireDate         *string `json:"hireDate,omitempty" binding:"omitempty,datetime=2006-01-02"`                    // 入职日期，格式 YYYY-MM-DD
 	TerminationDate  *string `json:"terminationDate,omitempty" binding:"omitempty,datetime=2006-01-02"`             // 日期格式 YYYY-MM-DD
 }

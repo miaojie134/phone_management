@@ -1,5 +1,192 @@
 definitions:
-  github_com_phone_management_internal_models.ConfirmedPhoneDetail:
+  handlers.BatchImportErrorDetail:
+    properties:
+      reason:
+        description: 错误原因
+        type: string
+      rowData:
+        description: 可选，原始行数据
+        items:
+          type: string
+        type: array
+      rowNumber:
+        description: CSV中的原始行号 (从1开始计数，包括表头)
+        type: integer
+    type: object
+  handlers.BatchImportMobileNumberErrorDetail:
+    properties:
+      reason:
+        description: 错误原因
+        type: string
+      rowData:
+        description: 可选，原始行数据
+        items:
+          type: string
+        type: array
+      rowNumber:
+        description: CSV中的原始行号 (从1开始计数，包括表头)
+        type: integer
+    type: object
+  handlers.BatchImportMobileNumbersResponse:
+    properties:
+      errorCount:
+        type: integer
+      errors:
+        items:
+          $ref: '#/definitions/handlers.BatchImportMobileNumberErrorDetail'
+        type: array
+      message:
+        type: string
+      successCount:
+        type: integer
+    type: object
+  handlers.BatchImportResponse:
+    properties:
+      errorCount:
+        type: integer
+      errors:
+        items:
+          $ref: '#/definitions/handlers.BatchImportErrorDetail'
+        type: array
+      message:
+        type: string
+      successCount:
+        type: integer
+    type: object
+  handlers.CreateEmployeePayload:
+    properties:
+      department:
+        maxLength: 255
+        type: string
+      email:
+        description: 可选，需要是合法的email格式，最大长度255
+        maxLength: 255
+        type: string
+      fullName:
+        maxLength: 255
+        type: string
+      hireDate:
+        description: 入职日期，可选，格式 YYYY-MM-DD
+        type: string
+      phoneNumber:
+        description: 手机号：可选，但如果提供，必须是11位数字
+        type: string
+    required:
+    - fullName
+    type: object
+  handlers.CreateMobileNumberPayload:
+    properties:
+      applicantEmployeeId:
+        description: 改为 string，代表业务工号
+        type: string
+      applicationDate:
+        type: string
+      phoneNumber:
+        maxLength: 50
+        type: string
+      purpose:
+        description: 号码用途，可选
+        maxLength: 255
+        type: string
+      remarks:
+        maxLength: 255
+        type: string
+      status:
+        enum:
+        - 闲置
+        - 在用
+        - 待注销
+        - 已注销
+        - 待核实-办卡人离职
+        type: string
+      vendor:
+        maxLength: 100
+        type: string
+    required:
+    - applicantEmployeeId
+    - applicationDate
+    - phoneNumber
+    - status
+    type: object
+  handlers.InitiateVerificationRequest:
+    properties:
+      durationDays:
+        maximum: 30
+        minimum: 1
+        type: integer
+      scope:
+        enum:
+        - all_users
+        - department
+        - employee_ids
+        type: string
+      scopeValues:
+        items:
+          type: string
+        type: array
+    required:
+    - durationDays
+    - scope
+    type: object
+  handlers.InitiateVerificationResponse:
+    properties:
+      batchId:
+        type: string
+    type: object
+  handlers.LoginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  handlers.LoginResponse:
+    properties:
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/handlers.UserInfo'
+    type: object
+  handlers.PagedEmployeesData:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/models.Employee'
+        type: array
+      pagination:
+        $ref: '#/definitions/handlers.PaginationInfo'
+    type: object
+  handlers.PagedMobileNumbersData:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/models.MobileNumberResponse'
+        type: array
+      pagination:
+        $ref: '#/definitions/handlers.PaginationInfo'
+    type: object
+  handlers.PaginationInfo:
+    properties:
+      currentPage:
+        type: integer
+      pageSize:
+        type: integer
+      totalItems:
+        type: integer
+      totalPages:
+        type: integer
+    type: object
+  handlers.UserInfo:
+    properties:
+      role:
+        type: string
+      username:
+        type: string
+    type: object
+  models.ConfirmedPhoneDetail:
     properties:
       confirmedAt:
         type: string
@@ -16,7 +203,7 @@ definitions:
       purpose:
         type: string
     type: object
-  github_com_phone_management_internal_models.Employee:
+  models.Employee:
     properties:
       createdAt:
         type: string
@@ -52,7 +239,7 @@ definitions:
       updatedAt:
         type: string
     type: object
-  github_com_phone_management_internal_models.EmployeeDetailResponse:
+  models.EmployeeDetailResponse:
     properties:
       createdAt:
         type: string
@@ -67,7 +254,7 @@ definitions:
       handledMobileNumbers:
         description: 作为办卡人的号码列表
         items:
-          $ref: '#/definitions/github_com_phone_management_internal_models.MobileNumberBasicInfo'
+          $ref: '#/definitions/models.MobileNumberBasicInfo'
         type: array
       hireDate:
         type: string
@@ -80,10 +267,10 @@ definitions:
       usingMobileNumbers:
         description: 作为当前使用人的号码列表
         items:
-          $ref: '#/definitions/github_com_phone_management_internal_models.MobileNumberBasicInfo'
+          $ref: '#/definitions/models.MobileNumberBasicInfo'
         type: array
     type: object
-  github_com_phone_management_internal_models.MobileNumber:
+  models.MobileNumber:
     properties:
       applicantEmployeeId:
         description: 办卡人员工业务工号
@@ -133,7 +320,7 @@ definitions:
     - phoneNumber
     - status
     type: object
-  github_com_phone_management_internal_models.MobileNumberAssignPayload:
+  models.MobileNumberAssignPayload:
     properties:
       assignmentDate:
         type: string
@@ -149,7 +336,7 @@ definitions:
     - employeeId
     - purpose
     type: object
-  github_com_phone_management_internal_models.MobileNumberBasicInfo:
+  models.MobileNumberBasicInfo:
     properties:
       id:
         type: integer
@@ -158,7 +345,7 @@ definitions:
       status:
         type: string
     type: object
-  github_com_phone_management_internal_models.MobileNumberResponse:
+  models.MobileNumberResponse:
     properties:
       applicantEmployeeId:
         description: 办卡人员工业务工号
@@ -197,17 +384,17 @@ definitions:
       usageHistory:
         description: 号码使用历史
         items:
-          $ref: '#/definitions/github_com_phone_management_internal_models.NumberUsageHistory'
+          $ref: '#/definitions/models.NumberUsageHistory'
         type: array
       vendor:
         type: string
     type: object
-  github_com_phone_management_internal_models.MobileNumberUnassignPayload:
+  models.MobileNumberUnassignPayload:
     properties:
       reclaimDate:
         type: string
     type: object
-  github_com_phone_management_internal_models.MobileNumberUpdatePayload:
+  models.MobileNumberUpdatePayload:
     properties:
       purpose:
         maxLength: 255
@@ -228,7 +415,7 @@ definitions:
         maxLength: 100
         type: string
     type: object
-  github_com_phone_management_internal_models.NumberUsageHistory:
+  models.NumberUsageHistory:
     properties:
       createdAt:
         type: string
@@ -252,7 +439,7 @@ definitions:
       updatedAt:
         type: string
     type: object
-  github_com_phone_management_internal_models.PendingUserDetail:
+  models.PendingUserDetail:
     properties:
       email:
         type: string
@@ -265,31 +452,31 @@ definitions:
       tokenId:
         type: integer
     type: object
-  github_com_phone_management_internal_models.PhoneVerificationStatusResponse:
+  models.PhoneVerificationStatusResponse:
     properties:
       confirmedPhones:
         items:
-          $ref: '#/definitions/github_com_phone_management_internal_models.ConfirmedPhoneDetail'
+          $ref: '#/definitions/models.ConfirmedPhoneDetail'
         type: array
       pendingUsers:
         description: Reuses PendingUserDetail
         items:
-          $ref: '#/definitions/github_com_phone_management_internal_models.PendingUserDetail'
+          $ref: '#/definitions/models.PendingUserDetail'
         type: array
       reportedIssues:
         description: Reuses ReportedIssueDetail
         items:
-          $ref: '#/definitions/github_com_phone_management_internal_models.ReportedIssueDetail'
+          $ref: '#/definitions/models.ReportedIssueDetail'
         type: array
       summary:
-        $ref: '#/definitions/github_com_phone_management_internal_models.PhoneVerificationSummary'
+        $ref: '#/definitions/models.PhoneVerificationSummary'
       unlistedNumbers:
         description: Reuses ReportedUnlistedNumberInfo
         items:
-          $ref: '#/definitions/github_com_phone_management_internal_models.ReportedUnlistedNumberInfo'
+          $ref: '#/definitions/models.ReportedUnlistedNumberInfo'
         type: array
     type: object
-  github_com_phone_management_internal_models.PhoneVerificationSummary:
+  models.PhoneVerificationSummary:
     properties:
       confirmedPhonesCount:
         type: integer
@@ -302,7 +489,7 @@ definitions:
       totalPhonesCount:
         type: integer
     type: object
-  github_com_phone_management_internal_models.ReportedIssueDetail:
+  models.ReportedIssueDetail:
     properties:
       adminActionStatus:
         type: string
@@ -321,7 +508,7 @@ definitions:
       reportedBy:
         type: string
     type: object
-  github_com_phone_management_internal_models.ReportedUnlistedNumberInfo:
+  models.ReportedUnlistedNumberInfo:
     properties:
       phoneNumber:
         type: string
@@ -332,7 +519,7 @@ definitions:
       userComment:
         type: string
     type: object
-  github_com_phone_management_internal_models.UnlistedNumber:
+  models.UnlistedNumber:
     properties:
       phoneNumber:
         type: string
@@ -345,7 +532,7 @@ definitions:
     - phoneNumber
     - purpose
     type: object
-  github_com_phone_management_internal_models.UpdateEmployeePayload:
+  models.UpdateEmployeePayload:
     properties:
       department:
         maxLength: 255
@@ -357,11 +544,14 @@ definitions:
         - Inactive
         - Departed
         type: string
+      hireDate:
+        description: 入职日期，格式 YYYY-MM-DD
+        type: string
       terminationDate:
         description: 日期格式 YYYY-MM-DD
         type: string
     type: object
-  github_com_phone_management_internal_models.VerificationBatchTask:
+  models.VerificationBatchTask:
     properties:
       createdAt:
         type: string
@@ -381,11 +571,11 @@ definitions:
       requestedDurationDays:
         type: integer
       requestedScopeType:
-        $ref: '#/definitions/github_com_phone_management_internal_models.VerificationScopeType'
+        $ref: '#/definitions/models.VerificationScopeType'
       requestedScopeValues:
         type: string
       status:
-        $ref: '#/definitions/github_com_phone_management_internal_models.VerificationBatchTaskStatus'
+        $ref: '#/definitions/models.VerificationBatchTaskStatus'
       tokensGeneratedCount:
         type: integer
       totalEmployeesToProcess:
@@ -393,7 +583,7 @@ definitions:
       updatedAt:
         type: string
     type: object
-  github_com_phone_management_internal_models.VerificationBatchTaskStatus:
+  models.VerificationBatchTaskStatus:
     enum:
     - Pending
     - InProgress
@@ -407,7 +597,7 @@ definitions:
     - BatchTaskStatusCompleted
     - BatchTaskStatusCompletedWithErrors
     - BatchTaskStatusFailed
-  github_com_phone_management_internal_models.VerificationInfo:
+  models.VerificationInfo:
     properties:
       employeeId:
         type: string
@@ -417,14 +607,14 @@ definitions:
         type: string
       phoneNumbers:
         items:
-          $ref: '#/definitions/github_com_phone_management_internal_models.VerificationPhoneNumber'
+          $ref: '#/definitions/models.VerificationPhoneNumber'
         type: array
       previouslyReportedUnlisted:
         items:
-          $ref: '#/definitions/github_com_phone_management_internal_models.ReportedUnlistedNumberInfo'
+          $ref: '#/definitions/models.ReportedUnlistedNumberInfo'
         type: array
     type: object
-  github_com_phone_management_internal_models.VerificationPhoneNumber:
+  models.VerificationPhoneNumber:
     properties:
       department:
         type: string
@@ -439,7 +629,7 @@ definitions:
       userComment:
         type: string
     type: object
-  github_com_phone_management_internal_models.VerificationScopeType:
+  models.VerificationScopeType:
     enum:
     - all_users
     - department
@@ -449,18 +639,18 @@ definitions:
     - VerificationScopeAllUsers
     - VerificationScopeDepartment
     - VerificationScopeEmployeeIDs
-  github_com_phone_management_internal_models.VerificationSubmission:
+  models.VerificationSubmission:
     properties:
       unlistedNumbersReported:
         items:
-          $ref: '#/definitions/github_com_phone_management_internal_models.UnlistedNumber'
+          $ref: '#/definitions/models.UnlistedNumber'
         type: array
       verifiedNumbers:
         items:
-          $ref: '#/definitions/github_com_phone_management_internal_models.VerifiedNumber'
+          $ref: '#/definitions/models.VerifiedNumber'
         type: array
     type: object
-  github_com_phone_management_internal_models.VerifiedNumber:
+  models.VerifiedNumber:
     properties:
       action:
         enum:
@@ -477,13 +667,13 @@ definitions:
     - action
     - mobileNumberId
     type: object
-  github_com_phone_management_pkg_utils.APIErrorResponse:
+  utils.APIErrorResponse:
     properties:
       details: {}
       error:
         type: string
     type: object
-  github_com_phone_management_pkg_utils.SuccessResponse:
+  utils.SuccessResponse:
     properties:
       data:
         description: 响应数据
@@ -492,190 +682,6 @@ definitions:
         type: string
       status:
         description: 例如 "success"
-        type: string
-    type: object
-  internal_handlers.BatchImportErrorDetail:
-    properties:
-      reason:
-        description: 错误原因
-        type: string
-      rowData:
-        description: 可选，原始行数据
-        items:
-          type: string
-        type: array
-      rowNumber:
-        description: CSV中的原始行号 (从1开始计数，包括表头)
-        type: integer
-    type: object
-  internal_handlers.BatchImportMobileNumberErrorDetail:
-    properties:
-      reason:
-        description: 错误原因
-        type: string
-      rowData:
-        description: 可选，原始行数据
-        items:
-          type: string
-        type: array
-      rowNumber:
-        description: CSV中的原始行号 (从1开始计数，包括表头)
-        type: integer
-    type: object
-  internal_handlers.BatchImportMobileNumbersResponse:
-    properties:
-      errorCount:
-        type: integer
-      errors:
-        items:
-          $ref: '#/definitions/internal_handlers.BatchImportMobileNumberErrorDetail'
-        type: array
-      message:
-        type: string
-      successCount:
-        type: integer
-    type: object
-  internal_handlers.BatchImportResponse:
-    properties:
-      errorCount:
-        type: integer
-      errors:
-        items:
-          $ref: '#/definitions/internal_handlers.BatchImportErrorDetail'
-        type: array
-      message:
-        type: string
-      successCount:
-        type: integer
-    type: object
-  internal_handlers.CreateEmployeePayload:
-    properties:
-      department:
-        maxLength: 255
-        type: string
-      email:
-        description: 可选，需要是合法的email格式，最大长度255
-        maxLength: 255
-        type: string
-      fullName:
-        maxLength: 255
-        type: string
-      phoneNumber:
-        description: 手机号：可选，但如果提供，必须是11位数字
-        type: string
-    required:
-    - fullName
-    type: object
-  internal_handlers.CreateMobileNumberPayload:
-    properties:
-      applicantEmployeeId:
-        description: 改为 string，代表业务工号
-        type: string
-      applicationDate:
-        type: string
-      phoneNumber:
-        maxLength: 50
-        type: string
-      purpose:
-        description: 号码用途，可选
-        maxLength: 255
-        type: string
-      remarks:
-        maxLength: 255
-        type: string
-      status:
-        enum:
-        - 闲置
-        - 在用
-        - 待注销
-        - 已注销
-        - 待核实-办卡人离职
-        type: string
-      vendor:
-        maxLength: 100
-        type: string
-    required:
-    - applicantEmployeeId
-    - applicationDate
-    - phoneNumber
-    - status
-    type: object
-  internal_handlers.InitiateVerificationRequest:
-    properties:
-      durationDays:
-        maximum: 30
-        minimum: 1
-        type: integer
-      scope:
-        enum:
-        - all_users
-        - department
-        - employee_ids
-        type: string
-      scopeValues:
-        items:
-          type: string
-        type: array
-    required:
-    - durationDays
-    - scope
-    type: object
-  internal_handlers.InitiateVerificationResponse:
-    properties:
-      batchId:
-        type: string
-    type: object
-  internal_handlers.LoginRequest:
-    properties:
-      password:
-        type: string
-      username:
-        type: string
-    required:
-    - password
-    - username
-    type: object
-  internal_handlers.LoginResponse:
-    properties:
-      token:
-        type: string
-      user:
-        $ref: '#/definitions/internal_handlers.UserInfo'
-    type: object
-  internal_handlers.PagedEmployeesData:
-    properties:
-      items:
-        items:
-          $ref: '#/definitions/github_com_phone_management_internal_models.Employee'
-        type: array
-      pagination:
-        $ref: '#/definitions/internal_handlers.PaginationInfo'
-    type: object
-  internal_handlers.PagedMobileNumbersData:
-    properties:
-      items:
-        items:
-          $ref: '#/definitions/github_com_phone_management_internal_models.MobileNumberResponse'
-        type: array
-      pagination:
-        $ref: '#/definitions/internal_handlers.PaginationInfo'
-    type: object
-  internal_handlers.PaginationInfo:
-    properties:
-      currentPage:
-        type: integer
-      pageSize:
-        type: integer
-      totalItems:
-        type: integer
-      totalPages:
-        type: integer
-    type: object
-  internal_handlers.UserInfo:
-    properties:
-      role:
-        type: string
-      username:
         type: string
     type: object
 info:
@@ -692,7 +698,7 @@ paths:
         name: credentials
         required: true
         schema:
-          $ref: '#/definitions/internal_handlers.LoginRequest'
+          $ref: '#/definitions/handlers.LoginRequest'
       produces:
       - application/json
       responses:
@@ -700,23 +706,23 @@ paths:
           description: 登录成功，返回 Token 和用户信息
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_phone_management_pkg_utils.SuccessResponse'
+            - $ref: '#/definitions/utils.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/internal_handlers.LoginResponse'
+                  $ref: '#/definitions/handlers.LoginResponse'
               type: object
         "400":
           description: 请求参数错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "401":
           description: 无效的用户名或密码
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "500":
           description: 无法生成Token
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
       summary: 管理员登录
       tags:
       - auth
@@ -731,11 +737,11 @@ paths:
         "200":
           description: 成功登出
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.SuccessResponse'
+            $ref: '#/definitions/utils.SuccessResponse'
         "400":
           description: 错误的请求 (例如，上下文中缺少JTI或EXP)
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
       security:
       - BearerAuth: []
       summary: User logout
@@ -781,23 +787,23 @@ paths:
           description: 成功响应，包含员工列表和分页信息
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_phone_management_pkg_utils.SuccessResponse'
+            - $ref: '#/definitions/utils.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/internal_handlers.PagedEmployeesData'
+                  $ref: '#/definitions/handlers.PagedEmployeesData'
               type: object
         "400":
           description: 请求参数错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "401":
           description: 未认证或 Token 无效/过期
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "500":
           description: 服务器内部错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
       security:
       - BearerAuth: []
       summary: 获取员工列表
@@ -806,14 +812,14 @@ paths:
     post:
       consumes:
       - application/json
-      description: 从请求体绑定数据并验证，数据保存到数据库。员工工号需唯一。
+      description: 从请求体绑定数据并验证，数据保存到数据库。员工工号由系统自动生成。支持设置可选的入职日期（格式：YYYY-MM-DD）。
       parameters:
-      - description: 员工信息
+      - description: 员工信息。包含必填的姓名，可选的手机号、邮箱、部门和入职日期
         in: body
         name: employee
         required: true
         schema:
-          $ref: '#/definitions/internal_handlers.CreateEmployeePayload'
+          $ref: '#/definitions/handlers.CreateEmployeePayload'
       produces:
       - application/json
       responses:
@@ -821,27 +827,27 @@ paths:
           description: 创建成功的员工对象
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_phone_management_pkg_utils.SuccessResponse'
+            - $ref: '#/definitions/utils.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/github_com_phone_management_internal_models.Employee'
+                  $ref: '#/definitions/models.Employee'
               type: object
         "400":
-          description: 请求参数错误或数据校验失败
+          description: 请求参数错误、数据校验失败或入职日期格式无效
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "401":
           description: 未认证或 Token 无效/过期
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "409":
-          description: 员工工号已存在
+          description: 手机号或邮箱已存在
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "500":
           description: 服务器内部错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
       security:
       - BearerAuth: []
       summary: 新增一个员工
@@ -865,27 +871,27 @@ paths:
           description: 成功响应，包含员工详情
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_phone_management_pkg_utils.SuccessResponse'
+            - $ref: '#/definitions/utils.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/github_com_phone_management_internal_models.EmployeeDetailResponse'
+                  $ref: '#/definitions/models.EmployeeDetailResponse'
               type: object
         "400":
           description: 无效的员工工号格式 (保留，以防未来有格式校验)
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "401":
           description: 未认证或 Token 无效/过期
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "404":
           description: 员工未找到
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "500":
           description: 服务器内部错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
       security:
       - BearerAuth: []
       summary: 获取指定业务工号的员工详情
@@ -895,19 +901,20 @@ paths:
     post:
       consumes:
       - application/json
-      description: 根据员工业务工号更新员工的部门、在职状态或离职日期。
+      description: 根据员工业务工号更新员工的部门、入职日期、在职状态或离职日期。所有字段都是可选的，至少需要提供一个字段进行更新。入职日期和离职日期格式为
+        YYYY-MM-DD。
       parameters:
       - description: 员工业务工号
         in: path
         name: employeeId
         required: true
         type: string
-      - description: 要更新的员工字段
+      - description: 要更新的员工字段。可包含部门、入职日期、在职状态、离职日期
         in: body
         name: employeeUpdate
         required: true
         schema:
-          $ref: '#/definitions/github_com_phone_management_internal_models.UpdateEmployeePayload'
+          $ref: '#/definitions/models.UpdateEmployeePayload'
       produces:
       - application/json
       responses:
@@ -915,27 +922,27 @@ paths:
           description: 更新后的员工对象
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_phone_management_pkg_utils.SuccessResponse'
+            - $ref: '#/definitions/utils.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/github_com_phone_management_internal_models.Employee'
+                  $ref: '#/definitions/models.Employee'
               type: object
         "400":
-          description: 请求参数错误或数据校验失败
+          description: 请求参数错误、数据校验失败、日期格式无效或业务逻辑错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "401":
           description: 未认证或 Token 无效/过期
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "404":
           description: 员工未找到
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "500":
           description: 服务器内部错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
       security:
       - BearerAuth: []
       summary: 更新指定业务工号的员工信息
@@ -945,9 +952,9 @@ paths:
     post:
       consumes:
       - multipart/form-data
-      description: 通过上传 CSV 文件批量导入员工。CSV文件应包含表头：fullName,phoneNumber,email,department。顺序必须一致，表头自身也会被计入行号。
+      description: 通过上传 CSV 文件批量导入员工。CSV文件必须包含表头：fullName,phoneNumber,email,department,hireDate。列顺序必须一致。fullName为必填，其他字段可为空。hireDate格式为YYYY-MM-DD。支持GBK和UTF-8编码。
       parameters:
-      - description: '包含员工数据的 CSV 文件 (表头: fullName,phoneNumber,email,department)'
+      - description: '包含员工数据的 CSV 文件。表头: fullName,phoneNumber,email,department,hireDate'
         in: formData
         name: file
         required: true
@@ -956,26 +963,26 @@ paths:
       - application/json
       responses:
         "200":
-          description: 导入结果摘要
+          description: 导入结果摘要，包含成功和失败的详细信息
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_phone_management_pkg_utils.SuccessResponse'
+            - $ref: '#/definitions/utils.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/internal_handlers.BatchImportResponse'
+                  $ref: '#/definitions/handlers.BatchImportResponse'
               type: object
         "400":
-          description: 请求错误，例如文件未提供、文件格式错误或CSV表头不匹配
+          description: 请求错误，例如文件未提供、文件格式错误、CSV表头不匹配或数据格式错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "401":
           description: 未认证或 Token 无效/过期
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "500":
           description: 服务器内部错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
       security:
       - BearerAuth: []
       summary: 批量导入员工数据 (CSV)
@@ -1024,19 +1031,19 @@ paths:
           description: 成功响应，包含号码列表和分页信息
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_phone_management_pkg_utils.SuccessResponse'
+            - $ref: '#/definitions/utils.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/internal_handlers.PagedMobileNumbersData'
+                  $ref: '#/definitions/handlers.PagedMobileNumbersData'
               type: object
         "400":
           description: 请求参数错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "500":
           description: 服务器内部错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
       security:
       - BearerAuth: []
       summary: 获取手机号码列表
@@ -1052,7 +1059,7 @@ paths:
         name: mobileNumber
         required: true
         schema:
-          $ref: '#/definitions/internal_handlers.CreateMobileNumberPayload'
+          $ref: '#/definitions/handlers.CreateMobileNumberPayload'
       produces:
       - application/json
       responses:
@@ -1060,27 +1067,27 @@ paths:
           description: 创建成功的号码对象
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_phone_management_pkg_utils.SuccessResponse'
+            - $ref: '#/definitions/utils.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/github_com_phone_management_internal_models.MobileNumber'
+                  $ref: '#/definitions/models.MobileNumber'
               type: object
         "400":
           description: 请求参数错误或数据校验失败
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "401":
           description: 未认证或 Token 无效/过期
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "409":
           description: 手机号码已存在
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "500":
           description: 服务器内部错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
       security:
       - BearerAuth: []
       summary: 新增一个手机号码
@@ -1104,23 +1111,23 @@ paths:
           description: 成功响应，包含号码详情及其使用历史
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_phone_management_pkg_utils.SuccessResponse'
+            - $ref: '#/definitions/utils.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/github_com_phone_management_internal_models.MobileNumberResponse'
+                  $ref: '#/definitions/models.MobileNumberResponse'
               type: object
         "400":
           description: 无效的手机号码格式 (保留，以防未来有格式校验)
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "404":
           description: 号码未找到
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "500":
           description: 服务器内部错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
       security:
       - BearerAuth: []
       summary: 获取指定手机号码的详情
@@ -1142,7 +1149,7 @@ paths:
         name: assignPayload
         required: true
         schema:
-          $ref: '#/definitions/github_com_phone_management_internal_models.MobileNumberAssignPayload'
+          $ref: '#/definitions/models.MobileNumberAssignPayload'
       produces:
       - application/json
       responses:
@@ -1150,31 +1157,31 @@ paths:
           description: 成功分配后的号码对象
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_phone_management_pkg_utils.SuccessResponse'
+            - $ref: '#/definitions/utils.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/github_com_phone_management_internal_models.MobileNumber'
+                  $ref: '#/definitions/models.MobileNumber'
               type: object
         "400":
           description: 请求参数错误 / 无效的日期格式 / 无效的手机号码格式" // 更新了描述
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "401":
           description: 未认证或 Token 无效/过期
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "404":
           description: 手机号码或目标员工工号未找到
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "409":
           description: 操作冲突 (例如：号码非闲置，员工非在职)
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "500":
           description: 服务器内部错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
       security:
       - BearerAuth: []
       summary: 将指定手机号码分配给一个员工
@@ -1195,7 +1202,7 @@ paths:
         in: body
         name: unassignPayload
         schema:
-          $ref: '#/definitions/github_com_phone_management_internal_models.MobileNumberUnassignPayload'
+          $ref: '#/definitions/models.MobileNumberUnassignPayload'
       produces:
       - application/json
       responses:
@@ -1203,31 +1210,31 @@ paths:
           description: 成功回收后的号码对象
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_phone_management_pkg_utils.SuccessResponse'
+            - $ref: '#/definitions/utils.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/github_com_phone_management_internal_models.MobileNumber'
+                  $ref: '#/definitions/models.MobileNumber'
               type: object
         "400":
           description: 请求参数错误 / 无效的日期格式 / 无效的手机号码格式" // 添加了无效手机号格式的说明
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "401":
           description: 未认证或 Token 无效/过期
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "404":
           description: 手机号码未找到
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "409":
           description: 操作冲突 (例如：号码非在用状态，或未找到有效的分配记录)
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "500":
           description: 服务器内部错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
       security:
       - BearerAuth: []
       summary: 从当前使用人处回收指定手机号码
@@ -1249,7 +1256,7 @@ paths:
         name: mobileNumberUpdate
         required: true
         schema:
-          $ref: '#/definitions/github_com_phone_management_internal_models.MobileNumberUpdatePayload'
+          $ref: '#/definitions/models.MobileNumberUpdatePayload'
       produces:
       - application/json
       responses:
@@ -1257,27 +1264,27 @@ paths:
           description: 更新后的号码对象
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_phone_management_pkg_utils.SuccessResponse'
+            - $ref: '#/definitions/utils.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/github_com_phone_management_internal_models.MobileNumber'
+                  $ref: '#/definitions/models.MobileNumber'
               type: object
         "400":
           description: 请求参数错误或数据校验失败 / 没有提供任何更新字段 / 无效的手机号码格式" // 更新了描述
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "401":
           description: 未认证或 Token 无效/过期
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "404":
           description: 号码未找到
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "500":
           description: 服务器内部错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
       security:
       - BearerAuth: []
       summary: 更新指定手机号码的信息
@@ -1301,23 +1308,23 @@ paths:
           description: 导入结果摘要
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_phone_management_pkg_utils.SuccessResponse'
+            - $ref: '#/definitions/utils.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/internal_handlers.BatchImportMobileNumbersResponse'
+                  $ref: '#/definitions/handlers.BatchImportMobileNumbersResponse'
               type: object
         "400":
           description: 请求错误，例如文件未提供、文件格式错误或CSV表头不匹配
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "401":
           description: 未认证或 Token 无效/过期
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "500":
           description: 服务器内部错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
       security:
       - BearerAuth: []
       summary: 批量导入手机号码数据 (CSV)
@@ -1352,23 +1359,23 @@ paths:
           description: 成功响应
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_phone_management_pkg_utils.SuccessResponse'
+            - $ref: '#/definitions/utils.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/github_com_phone_management_internal_models.PhoneVerificationStatusResponse'
+                  $ref: '#/definitions/models.PhoneVerificationStatusResponse'
               type: object
         "400":
           description: 请求参数错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "401":
           description: 未授权
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "500":
           description: 服务器内部错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
       security:
       - BearerAuth: []
       summary: 获取基于手机号码维度的确认流程状态
@@ -1390,23 +1397,23 @@ paths:
           description: 成功响应，包含批处理任务详情
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_phone_management_pkg_utils.SuccessResponse'
+            - $ref: '#/definitions/utils.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/github_com_phone_management_internal_models.VerificationBatchTask'
+                  $ref: '#/definitions/models.VerificationBatchTask'
               type: object
         "400":
           description: 无效的批处理ID格式
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "404":
           description: 批处理任务未找到
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "500":
           description: 服务器内部错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
       security:
       - BearerAuth: []
       summary: 获取号码确认批处理任务的状态
@@ -1428,19 +1435,19 @@ paths:
           description: 成功响应，包含员工姓名、令牌有效期、待验证的号码列表及其状态
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_phone_management_pkg_utils.SuccessResponse'
+            - $ref: '#/definitions/utils.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/github_com_phone_management_internal_models.VerificationInfo'
+                  $ref: '#/definitions/models.VerificationInfo'
               type: object
         "403":
           description: 令牌无效或已过期
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "500":
           description: 服务器内部错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
       summary: 获取待确认的号码信息
       tags:
       - Verification
@@ -1455,7 +1462,7 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/internal_handlers.InitiateVerificationRequest'
+          $ref: '#/definitions/handlers.InitiateVerificationRequest'
       produces:
       - application/json
       responses:
@@ -1463,19 +1470,19 @@ paths:
           description: 请求已接受，批处理任务已创建
           schema:
             allOf:
-            - $ref: '#/definitions/github_com_phone_management_pkg_utils.SuccessResponse'
+            - $ref: '#/definitions/utils.SuccessResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/internal_handlers.InitiateVerificationResponse'
+                  $ref: '#/definitions/handlers.InitiateVerificationResponse'
               type: object
         "400":
           description: 请求参数无效或错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "500":
           description: 服务器内部错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
       security:
       - BearerAuth: []
       summary: 发起号码使用确认流程 (异步)
@@ -1497,26 +1504,26 @@ paths:
         name: body
         required: true
         schema:
-          $ref: '#/definitions/github_com_phone_management_internal_models.VerificationSubmission'
+          $ref: '#/definitions/models.VerificationSubmission'
       produces:
       - application/json
       responses:
         "200":
           description: 提交成功
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.SuccessResponse'
+            $ref: '#/definitions/utils.SuccessResponse'
         "400":
           description: 请求参数无效
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "403":
           description: 令牌无效或已过期
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
         "500":
           description: 服务器内部错误
           schema:
-            $ref: '#/definitions/github_com_phone_management_pkg_utils.APIErrorResponse'
+            $ref: '#/definitions/utils.APIErrorResponse'
       summary: 提交号码确认结果
       tags:
       - Verification

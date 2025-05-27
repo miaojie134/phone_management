@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/phone_management/internal/models"
@@ -28,12 +29,13 @@ func NewEmployeeHandler(service services.EmployeeService) *EmployeeHandler {
 }
 
 // CreateEmployeePayload 定义了创建员工请求的 JSON 结构体
-// 注意：EmployeeID 已被移除，因为它由系统在后端自动生成。
+// 注意：EmployeeID 由系统自动生成，EmploymentStatus 默认为 "Active"
 type CreateEmployeePayload struct {
 	FullName    string  `json:"fullName" binding:"required,max=255"`
 	PhoneNumber *string `json:"phoneNumber,omitempty" binding:"omitempty,len=11,numeric"` // 手机号：可选，但如果提供，必须是11位数字
 	Email       *string `json:"email,omitempty" binding:"omitempty,email,max=255"`        // 可选，需要是合法的email格式，最大长度255
 	Department  *string `json:"department,omitempty" binding:"omitempty,max=255"`
+	HireDate    *string `json:"hireDate,omitempty" binding:"omitempty,datetime=2006-01-02"` // 入职日期，可选，格式 YYYY-MM-DD
 	// EmploymentStatus 默认为 "Active"，在模型或服务层处理，此处不需传递
 }
 
@@ -60,15 +62,15 @@ type BatchImportResponse struct {
 
 // CreateEmployee godoc
 // @Summary 新增一个员工
-// @Description 从请求体绑定数据并验证，数据保存到数据库。员工工号需唯一。
+// @Description 从请求体绑定数据并验证，数据保存到数据库。员工工号由系统自动生成。支持设置可选的入职日期（格式：YYYY-MM-DD）。
 // @Tags Employees
 // @Accept json
 // @Produce json
-// @Param employee body CreateEmployeePayload true "员工信息"
+// @Param employee body CreateEmployeePayload true "员工信息。包含必填的姓名，可选的手机号、邮箱、部门和入职日期"
 // @Success 201 {object} utils.SuccessResponse{data=models.Employee} "创建成功的员工对象"
-// @Failure 400 {object} utils.APIErrorResponse "请求参数错误或数据校验失败"
+// @Failure 400 {object} utils.APIErrorResponse "请求参数错误、数据校验失败或入职日期格式无效"
 // @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
-// @Failure 409 {object} utils.APIErrorResponse "员工工号已存在"
+// @Failure 409 {object} utils.APIErrorResponse "手机号或邮箱已存在"
 // @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
 // @Router /employees [post]
 // @Security BearerAuth
@@ -84,6 +86,16 @@ func (h *EmployeeHandler) CreateEmployee(c *gin.Context) {
 		PhoneNumber: payload.PhoneNumber,
 		Email:       payload.Email,
 		Department:  payload.Department,
+	}
+
+	// 处理入职日期
+	if payload.HireDate != nil && *payload.HireDate != "" {
+		hireDate, err := time.Parse("2006-01-02", *payload.HireDate)
+		if err != nil {
+			utils.RespondAPIError(c, http.StatusBadRequest, "无效的入职日期格式: "+*payload.HireDate, nil)
+			return
+		}
+		employeeToCreate.HireDate = &hireDate
 	}
 
 	createdEmployee, err := h.service.CreateEmployee(employeeToCreate)
@@ -218,14 +230,14 @@ func (h *EmployeeHandler) GetEmployeeByID(c *gin.Context) {
 
 // UpdateEmployee godoc
 // @Summary 更新指定业务工号的员工信息
-// @Description 根据员工业务工号更新员工的部门、在职状态或离职日期。
+// @Description 根据员工业务工号更新员工的部门、入职日期、在职状态或离职日期。所有字段都是可选的，至少需要提供一个字段进行更新。入职日期和离职日期格式为 YYYY-MM-DD。
 // @Tags Employees
 // @Accept json
 // @Produce json
 // @Param employeeId path string true "员工业务工号"
-// @Param employeeUpdate body models.UpdateEmployeePayload true "要更新的员工字段"
+// @Param employeeUpdate body models.UpdateEmployeePayload true "要更新的员工字段。可包含部门、入职日期、在职状态、离职日期"
 // @Success 200 {object} utils.SuccessResponse{data=models.Employee} "更新后的员工对象"
-// @Failure 400 {object} utils.APIErrorResponse "请求参数错误或数据校验失败"
+// @Failure 400 {object} utils.APIErrorResponse "请求参数错误、数据校验失败、日期格式无效或业务逻辑错误"
 // @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
 // @Failure 404 {object} utils.APIErrorResponse "员工未找到"
 // @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
@@ -241,7 +253,7 @@ func (h *EmployeeHandler) UpdateEmployee(c *gin.Context) {
 	}
 
 	// 基本校验：确保至少提供了一个字段进行更新
-	if payload.Department == nil && payload.EmploymentStatus == nil && payload.TerminationDate == nil {
+	if payload.Department == nil && payload.EmploymentStatus == nil && payload.HireDate == nil && payload.TerminationDate == nil {
 		utils.RespondAPIError(c, http.StatusBadRequest, "至少需要提供一个更新字段", nil)
 		return
 	}
@@ -287,13 +299,13 @@ func (h *EmployeeHandler) UpdateEmployee(c *gin.Context) {
 
 // BatchImportEmployees godoc
 // @Summary 批量导入员工数据 (CSV)
-// @Description 通过上传 CSV 文件批量导入员工。CSV文件应包含表头：fullName,phoneNumber,email,department。顺序必须一致，表头自身也会被计入行号。
+// @Description 通过上传 CSV 文件批量导入员工。CSV文件必须包含表头：fullName,phoneNumber,email,department,hireDate。列顺序必须一致。fullName为必填，其他字段可为空。hireDate格式为YYYY-MM-DD。支持GBK和UTF-8编码。
 // @Tags Employees
 // @Accept multipart/form-data
 // @Produce json
-// @Param file formData file true "包含员工数据的 CSV 文件 (表头: fullName,phoneNumber,email,department)"
-// @Success 200 {object} utils.SuccessResponse{data=BatchImportResponse} "导入结果摘要"
-// @Failure 400 {object} utils.APIErrorResponse "请求错误，例如文件未提供、文件格式错误或CSV表头不匹配"
+// @Param file formData file true "包含员工数据的 CSV 文件。表头: fullName,phoneNumber,email,department,hireDate"
+// @Success 200 {object} utils.SuccessResponse{data=BatchImportResponse} "导入结果摘要，包含成功和失败的详细信息"
+// @Failure 400 {object} utils.APIErrorResponse "请求错误，例如文件未提供、文件格式错误、CSV表头不匹配或数据格式错误"
 // @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
 // @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
 // @Router /employees/import [post]
@@ -331,7 +343,7 @@ func (h *EmployeeHandler) BatchImportEmployees(c *gin.Context) {
 		csvHeader[0] = strings.TrimPrefix(csvHeader[0], "\uFEFF")
 	}
 
-	expectedHeader := []string{"fullName", "phoneNumber", "email", "department"}
+	expectedHeader := []string{"fullName", "phoneNumber", "email", "department", "hireDate"}
 	if !utils.CompareStringSlices(csvHeader, expectedHeader) {
 		utils.RespondAPIError(c, http.StatusBadRequest, fmt.Sprintf("CSV 表头与预期不符。预期: %v, 得到: %v", expectedHeader, csvHeader), nil)
 		return
@@ -360,6 +372,7 @@ func (h *EmployeeHandler) BatchImportEmployees(c *gin.Context) {
 		phoneNumberStr := strings.TrimSpace(record[1])
 		emailStr := strings.TrimSpace(record[2])
 		departmentStr := strings.TrimSpace(record[3])
+		hireDateStr := strings.TrimSpace(record[4])
 
 		if fullName == "" {
 			importErrors = append(importErrors, BatchImportErrorDetail{RowNumber: rowNum, RowData: record, Reason: "fullName 不能为空"})
@@ -397,6 +410,18 @@ func (h *EmployeeHandler) BatchImportEmployees(c *gin.Context) {
 			employeeToCreate.Department = &departmentStr
 		} else {
 			employeeToCreate.Department = nil
+		}
+
+		if hireDateStr != "" {
+			hireDate, err := time.Parse("2006-01-02", hireDateStr)
+			if err != nil {
+				importErrors = append(importErrors, BatchImportErrorDetail{RowNumber: rowNum, RowData: record, Reason: "无效的入职日期格式: " + hireDateStr})
+				errorCount++
+				continue
+			}
+			employeeToCreate.HireDate = &hireDate
+		} else {
+			employeeToCreate.HireDate = nil
 		}
 
 		_, err = h.service.CreateEmployee(employeeToCreate)
