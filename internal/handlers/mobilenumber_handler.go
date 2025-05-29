@@ -31,9 +31,9 @@ func NewMobileNumberHandler(service services.MobileNumberService) *MobileNumberH
 // CreateMobileNumberPayload 是用于绑定和验证创建手机号码请求的临时结构体
 type CreateMobileNumberPayload struct {
 	PhoneNumber         string  `json:"phoneNumber" binding:"required,max=50"`
-	ApplicantEmployeeID string  `json:"applicantEmployeeId" binding:"required"` // 改为 string，代表业务工号
+	ApplicantEmployeeID string  `json:"applicantEmployeeId" binding:"required"` // 代表员工工号
 	ApplicationDate     string  `json:"applicationDate" binding:"required,datetime=2006-01-02"`
-	Status              string  `json:"status" binding:"required,oneof=闲置 在用 待注销 已注销 待核实-办卡人离职"`
+	Status              string  `json:"status"`                                        // 移除状态验证，在业务层处理
 	Purpose             *string `json:"purpose,omitempty" binding:"omitempty,max=255"` // 号码用途，可选
 	Vendor              string  `json:"vendor" binding:"max=100"`
 	Remarks             string  `json:"remarks" binding:"max=255"`
@@ -70,11 +70,20 @@ func (h *MobileNumberHandler) CreateMobileNumber(c *gin.Context) {
 		return
 	}
 
+	// 如果没有提供状态，默认设置为闲置
+	status := payload.Status
+	if status == "" {
+		status = string(models.StatusIdle)
+	} else if !models.IsValidStatus(status) {
+		utils.RespondAPIError(c, http.StatusBadRequest, "无效的状态值", "提供的状态: "+status)
+		return
+	}
+
 	mobileNumberToCreate := &models.MobileNumber{
 		PhoneNumber:         payload.PhoneNumber,
 		ApplicantEmployeeID: payload.ApplicantEmployeeID,
 		ApplicationDate:     applicationDate,
-		Status:              payload.Status,
+		Status:              status,
 		Purpose:             payload.Purpose,
 		Vendor:              payload.Vendor,
 		Remarks:             payload.Remarks,
@@ -114,7 +123,7 @@ type PagedMobileNumbersData struct {
 // @Param sortBy query string false "排序字段 (例如: phoneNumber, applicationDate)"
 // @Param sortOrder query string false "排序顺序 ('asc'或'desc')"
 // @Param search query string false "搜索关键词 (匹配手机号、使用人、办卡人)"
-// @Param status query string false "号码状态筛选 (例如: 闲置, 在用)"
+// @Param status query string false "号码状态筛选 (例如: 闲置, 使用中)"
 // @Param applicantStatus query string false "办卡人当前在职状态筛选 ('Active'或'Departed')"
 // @Success 200 {object} utils.SuccessResponse{data=PagedMobileNumbersData} "成功响应，包含号码列表和分页信息"
 // @Failure 400 {object} utils.APIErrorResponse "请求参数错误"
@@ -261,8 +270,14 @@ func (h *MobileNumberHandler) UpdateMobileNumber(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, services.ErrMobileNumberNotFound) {
 			utils.RespondNotFoundError(c, "手机号码")
-		} else if err.Error() == "没有提供任何更新字段" { // 这个错误也可能来自 service 层，如果 service 层也做了此校验
+		} else if err.Error() == "没有提供任何更新字段" {
 			utils.RespondAPIError(c, http.StatusBadRequest, err.Error(), nil)
+		} else if err.Error() == "无效的状态值" {
+			utils.RespondAPIError(c, http.StatusBadRequest, err.Error(), nil)
+		} else if strings.Contains(err.Error(), "不能直接将状态更新为'使用中'") {
+			utils.RespondAPIError(c, http.StatusBadRequest, err.Error(), "请使用分配接口 /assign 来将号码分配给用户")
+		} else if strings.Contains(err.Error(), "号码当前为'使用中'状态") {
+			utils.RespondAPIError(c, http.StatusConflict, err.Error(), "请使用回收接口 /unassign 来回收号码后再进行状态更新")
 		} else {
 			utils.RespondInternalServerError(c, "更新手机号码失败", err.Error())
 		}
@@ -274,7 +289,7 @@ func (h *MobileNumberHandler) UpdateMobileNumber(c *gin.Context) {
 
 // AssignMobileNumber godoc
 // @Summary 将指定手机号码分配给一个员工
-// @Description 校验目标号码是否为"闲置"状态，目标员工是否为"在职"状态。更新号码记录，关联当前使用人员工ID，将号码状态改为"在用"。创建一条新的号码使用历史记录。
+// @Description 校验目标号码是否为"闲置"状态，目标员工是否为"在职"状态。更新号码记录，关联当前使用人员工ID，将号码状态改为"使用中"。创建一条新的号码使用历史记录。
 // @Tags MobileNumbers
 // @Accept json
 // @Produce json
@@ -332,7 +347,7 @@ func (h *MobileNumberHandler) AssignMobileNumber(c *gin.Context) {
 
 // UnassignMobileNumber godoc
 // @Summary 从当前使用人处回收指定手机号码
-// @Description 校验目标号码是否为"在用"状态。更新号码记录，清空当前使用人员工ID，将号码状态改为"闲置"。更新上一条与该号码和使用人相关的号码使用历史记录，记录使用结束时间。
+// @Description 校验目标号码是否为"使用中"状态。更新号码记录，清空当前使用人员工ID，将号码状态改为"闲置"。更新上一条与该号码和使用人相关的号码使用历史记录，记录使用结束时间。
 // @Tags MobileNumbers
 // @Accept json
 // @Produce json
@@ -342,7 +357,7 @@ func (h *MobileNumberHandler) AssignMobileNumber(c *gin.Context) {
 // @Failure 400 {object} utils.APIErrorResponse "请求参数错误 / 无效的日期格式 / 无效的手机号码格式" // 添加了无效手机号格式的说明
 // @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
 // @Failure 404 {object} utils.APIErrorResponse "手机号码未找到"
-// @Failure 409 {object} utils.APIErrorResponse "操作冲突 (例如：号码非在用状态，或未找到有效的分配记录)"
+// @Failure 409 {object} utils.APIErrorResponse "操作冲突 (例如：号码非使用中状态，或未找到有效的分配记录)"
 // @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
 // @Router /mobilenumbers/{phoneNumber}/unassign [post]
 // @Security BearerAuth
@@ -387,10 +402,10 @@ func (h *MobileNumberHandler) UnassignMobileNumber(c *gin.Context) {
 		case errors.Is(err, services.ErrMobileNumberNotFound):
 			utils.RespondNotFoundError(c, "手机号码")
 		case errors.Is(err, repositories.ErrMobileNumberNotInUseStatus):
-			utils.RespondAPIError(c, http.StatusConflict, "手机号码不是在用状态，无法回收", err.Error())
+			utils.RespondAPIError(c, http.StatusConflict, "手机号码不是使用状态，无法回收", err.Error())
 		case errors.Is(err, repositories.ErrNoActiveUsageHistoryFound):
 			utils.RespondAPIError(c, http.StatusConflict, "未找到该号码当前有效的分配记录，无法回收", err.Error())
-		case strings.Contains(err.Error(), "数据不一致：在用号码没有关联当前用户"): // 这个错误可能来自 service 层更深处
+		case strings.Contains(err.Error(), "数据不一致：使用号码没有关联当前用户"): // 这个错误可能来自 service 层更深处
 			utils.RespondAPIError(c, http.StatusInternalServerError, "服务器内部错误: 数据不一致", err.Error())
 		default:
 			utils.RespondInternalServerError(c, "回收手机号码失败", err.Error())

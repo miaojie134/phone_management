@@ -10,13 +10,35 @@ import (
 type NumberStatus string
 
 const (
-	StatusIdle                NumberStatus = "闲置"
-	StatusInUse               NumberStatus = "在用"
-	StatusPendingDeactivation NumberStatus = "待注销"
-	StatusDeactivated         NumberStatus = "已注销"
-	StatusRiskPending         NumberStatus = "待核实-办卡人离职"
-	StatusUserReport          NumberStatus = "待核实-用户报告"
+	StatusIdle                NumberStatus = "idle"                 // 闲置
+	StatusInUse               NumberStatus = "in_use"               // 使用中
+	StatusPendingDeactivation NumberStatus = "pending_deactivation" // 待注销
+	StatusDeactivated         NumberStatus = "deactivated"          // 已注销
+	StatusRiskPending         NumberStatus = "risk_pending"         // 待核实-办卡人离职
+	StatusUserReport          NumberStatus = "user_reported"        // 待核实-用户报告
 )
+
+// GetAllStatuses 返回所有可用的状态
+func GetAllStatuses() []NumberStatus {
+	return []NumberStatus{
+		StatusIdle,
+		StatusInUse,
+		StatusPendingDeactivation,
+		StatusDeactivated,
+		StatusRiskPending,
+		StatusUserReport,
+	}
+}
+
+// IsValidStatus 检查状态是否有效
+func IsValidStatus(status string) bool {
+	for _, validStatus := range GetAllStatuses() {
+		if string(validStatus) == status {
+			return true
+		}
+	}
+	return false
+}
 
 // MobileNumber 对应于数据库中的 mobile_numbers 表
 type MobileNumber struct {
@@ -25,8 +47,8 @@ type MobileNumber struct {
 	ApplicantEmployeeID  string         `json:"applicantEmployeeId" gorm:"column:applicant_employee_id;not null" binding:"required"` // 办卡人员工业务工号
 	ApplicationDate      time.Time      `json:"applicationDate" gorm:"not null" binding:"required,time_format=2006-01-02"`
 	CurrentEmployeeID    *string        `json:"currentEmployeeId,omitempty" gorm:"column:current_employee_id"` // 当前使用人员工业务工号
-	Status               string         `json:"status" gorm:"not null" binding:"required,oneof=闲置 在用 待注销 已注销 待核实-办卡人离职 待核实-用户报告"`
-	Purpose              *string        `json:"purpose,omitempty" gorm:"type:varchar(255);null"` // 号码用途，例如"办公"、"客户联系"等
+	Status               string         `json:"status" gorm:"not null"`                                        // 使用英文常量存储
+	Purpose              *string        `json:"purpose,omitempty" gorm:"type:varchar(255);null"`               // 号码用途，例如"办公"、"客户联系"等
 	Vendor               string         `json:"vendor" binding:"max=100"`
 	Remarks              string         `json:"remarks" binding:"max=255"`
 	CancellationDate     *time.Time     `json:"cancellationDate" binding:"omitempty,time_format=2006-01-02"`
@@ -51,8 +73,8 @@ type MobileNumberResponse struct {
 	ApplicationDate     time.Time            `json:"applicationDate"`
 	CurrentEmployeeID   *string              `json:"currentEmployeeId,omitempty"` // 当前使用人员工业务工号
 	CurrentUserName     string               `json:"currentUserName,omitempty"`   // 当前使用人姓名
-	Status              string               `json:"status"`
-	Purpose             *string              `json:"purpose,omitempty"` // 号码用途
+	Status              string               `json:"status"`                      // 英文状态值
+	Purpose             *string              `json:"purpose,omitempty"`           // 号码用途
 	Vendor              string               `json:"vendor,omitempty"`
 	Remarks             string               `json:"remarks,omitempty"`
 	CancellationDate    *time.Time           `json:"cancellationDate,omitempty"`
@@ -63,7 +85,7 @@ type MobileNumberResponse struct {
 
 // MobileNumberUpdatePayload 定义了更新手机号码信息的请求体结构
 type MobileNumberUpdatePayload struct {
-	Status  *string `json:"status,omitempty" binding:"omitempty,oneof=闲置 在用 待注销 已注销 待核实-办卡人离职 待核实-用户报告"`
+	Status  *string `json:"status,omitempty"`
 	Purpose *string `json:"purpose,omitempty" binding:"omitempty,max=255"`
 	Vendor  *string `json:"vendor,omitempty" binding:"omitempty,max=100"`
 	Remarks *string `json:"remarks,omitempty" binding:"omitempty,max=255"`
@@ -85,5 +107,5 @@ type MobileNumberUnassignPayload struct {
 type MobileNumberBasicInfo struct {
 	ID          uint   `json:"id"`
 	PhoneNumber string `json:"phoneNumber"`
-	Status      string `json:"status"`
+	Status      string `json:"status"` // 英文状态值
 }

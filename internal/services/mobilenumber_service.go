@@ -100,6 +100,21 @@ func (s *mobileNumberService) UpdateMobileNumberByPhoneNumber(phoneNumber string
 
 	updates := make(map[string]interface{})
 	if payload.Status != nil {
+		// 验证状态是否有效
+		if !models.IsValidStatus(*payload.Status) {
+			return nil, errors.New("无效的状态值")
+		}
+
+		// 业务规则：不能直接更新为"使用中"状态
+		if *payload.Status == string(models.StatusInUse) {
+			return nil, errors.New("不能直接将状态更新为'使用中'，请使用分配操作")
+		}
+
+		// 业务规则：如果当前状态是"使用中"，不能直接更新状态
+		if mobileNumber.Status == string(models.StatusInUse) {
+			return nil, errors.New("号码当前为'使用中'状态，不能直接更新状态，请先进行回收操作")
+		}
+
 		updates["status"] = *payload.Status
 		if *payload.Status == string(models.StatusDeactivated) {
 			now := time.Now()

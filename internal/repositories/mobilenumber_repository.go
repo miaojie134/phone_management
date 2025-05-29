@@ -78,88 +78,6 @@ func (r *gormMobileNumberRepository) CreateMobileNumber(mobileNumber *models.Mob
 }
 
 // GetMobileNumbers 从数据库中获取手机号码列表，支持分页、排序、搜索和筛选
-// func (r *gormMobileNumberRepository) GetMobileNumbers(page, limit int, sortBy, sortOrder, search, status, applicantStatus string) ([]models.MobileNumberResponse, int64, error) {
-// 	var mobileNumbers []models.MobileNumberResponse
-// 	var totalItems int64
-
-// 	tx := r.db.Model(&models.MobileNumber{}).
-// 		Select(
-// 			"mobile_numbers.id AS id",
-// 			"mobile_numbers.phone_number AS phone_number",
-// 			"mobile_numbers.applicant_employee_id AS applicant_employee_id", // 使用新的列名
-// 			"applicant.full_name AS applicant_name",
-// 			"applicant.employment_status AS applicant_status",
-// 			"mobile_numbers.application_date AS application_date",
-// 			"mobile_numbers.current_employee_id AS current_employee_id", // 使用新的列名
-// 			"current_user.full_name AS current_user_name",
-// 			"mobile_numbers.status AS status",
-// 			"mobile_numbers.vendor AS vendor",
-// 			"mobile_numbers.remarks AS remarks",
-// 			"mobile_numbers.cancellation_date AS cancellation_date",
-// 			"mobile_numbers.created_at AS created_at",
-// 			"mobile_numbers.updated_at AS updated_at",
-// 		).
-// 		Joins("LEFT JOIN employees AS applicant ON applicant.employee_id = mobile_numbers.applicant_employee_id").     // 连接条件改为业务工号
-// 		Joins("LEFT JOIN employees AS current_user ON current_user.employee_id = mobile_numbers.current_employee_id"). // 连接条件改为业务工号
-// 		Where("mobile_numbers.status = ?", status)
-
-// 	// 处理搜索条件
-// 	if search != "" {
-// 		searchTerm := "%" + search + "%"
-// 		tx = tx.Where(
-// 			"mobile_numbers.phone_number LIKE ? OR applicant.full_name LIKE ? OR current_user.full_name LIKE ?",
-// 			searchTerm, searchTerm, searchTerm,
-// 		)
-// 	}
-
-// 	// 处理办卡人状态筛选
-// 	if applicantStatus != "" {
-// 		tx = tx.Where("applicant.employment_status = ?", applicantStatus)
-// 	}
-
-// 	// 计算总数（在应用分页之前）
-// 	if err := tx.Count(&totalItems).Error; err != nil {
-// 		return nil, 0, err
-// 	}
-
-// 	// 处理排序
-// 	if sortBy != "" {
-// 		// 白名单校验 sortBy 字段，防止 SQL 注入
-// 		allowedSortByFields := map[string]string{
-// 			"id":              "mobile_numbers.id",
-// 			"phoneNumber":     "mobile_numbers.phone_number",
-// 			"applicationDate": "mobile_numbers.application_date",
-// 			"status":          "mobile_numbers.status",
-// 			"vendor":          "mobile_numbers.vendor",
-// 			"createdAt":       "mobile_numbers.created_at", // 默认排序字段之一
-// 			"applicantName":   "applicant.full_name",
-// 			"currentUserName": "current_user.full_name",
-// 			"applicantStatus": "applicant.employment_status",
-// 		}
-// 		dbSortBy, isValidField := allowedSortByFields[sortBy]
-// 		if !isValidField {
-// 			dbSortBy = "mobile_numbers.created_at" // 如果字段无效，则使用默认排序字段
-// 		}
-
-// 		if strings.ToLower(sortOrder) != "desc" {
-// 			sortOrder = "asc"
-// 		}
-// 		tx = tx.Order(dbSortBy + " " + sortOrder)
-// 	} else {
-// 		// 默认排序
-// 		tx = tx.Order("mobile_numbers.created_at desc")
-// 	}
-
-// 	// 处理分页
-// 	offset := (page - 1) * limit
-// 	if err := tx.Offset(offset).Limit(limit).Find(&mobileNumbers).Error; err != nil {
-// 		return nil, 0, err
-// 	}
-
-// 	return mobileNumbers, totalItems, nil
-// }
-
-// GetMobileNumbers 从数据库中获取手机号码列表，支持分页、排序、搜索和筛选
 func (r *gormMobileNumberRepository) GetMobileNumbers(page, limit int, sortBy, sortOrder, search, status, applicantStatus string) ([]models.MobileNumberResponse, int64, error) {
 	var mobileNumbers []models.MobileNumberResponse
 	var totalItems int64
@@ -397,7 +315,7 @@ func (r *gormMobileNumberRepository) UnassignMobileNumber(numberID uint, reclaim
 		}
 
 		if mobileNumber.CurrentEmployeeID == nil || *mobileNumber.CurrentEmployeeID == "" {
-			return errors.New("数据不一致：在用号码没有关联当前用户业务工号")
+			return errors.New("数据不一致：使用号码没有关联当前用户业务工号")
 		}
 
 		var usageHistory models.NumberUsageHistory
@@ -455,7 +373,7 @@ func (r *gormMobileNumberRepository) UpdateLastConfirmationDate(ctx context.Cont
 func (r *gormMobileNumberRepository) MarkAsReportedByUser(ctx context.Context, numberID uint) error {
 	return r.db.WithContext(ctx).Model(&models.MobileNumber{}).
 		Where("id = ?", numberID).
-		Update("status", "待核实-用户报告").
+		Update("status", string(models.StatusUserReport)).
 		Error
 }
 
