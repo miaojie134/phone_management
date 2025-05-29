@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -23,6 +24,9 @@ var ErrEmailExists = errors.New("邮箱已存在")
 
 var ErrEmployeeNameNotFound = errors.New("按姓名未找到员工记录")
 
+// 员工离职相关错误
+var ErrEmployeeHasActiveNumbers = errors.New("员工当前正在使用手机号码，无法办理离职")
+
 // EmployeeService 定义了员工服务的接口
 type EmployeeService interface {
 	CreateEmployee(employee *models.Employee) (*models.Employee, error)
@@ -35,12 +39,16 @@ type EmployeeService interface {
 
 // employeeService 是 EmployeeService 的实现
 type employeeService struct {
-	repo repositories.EmployeeRepository
+	repo             repositories.EmployeeRepository
+	mobileNumberRepo repositories.MobileNumberRepository
 }
 
 // NewEmployeeService 创建一个新的 employeeService 实例
-func NewEmployeeService(repo repositories.EmployeeRepository) EmployeeService {
-	return &employeeService{repo: repo}
+func NewEmployeeService(repo repositories.EmployeeRepository, mobileNumberRepo repositories.MobileNumberRepository) EmployeeService {
+	return &employeeService{
+		repo:             repo,
+		mobileNumberRepo: mobileNumberRepo,
+	}
 }
 
 // CreateEmployee 处理创建员工的业务逻辑
@@ -136,7 +144,7 @@ func (s *employeeService) GetEmployeesByFullName(fullName string) ([]*models.Emp
 // UpdateEmployee 处理更新员工信息的业务逻辑
 func (s *employeeService) UpdateEmployee(employeeID string, payload models.UpdateEmployeePayload) (*models.Employee, error) {
 	// 首先，确保员工存在
-	_, err := s.repo.GetEmployeeByEmployeeID(employeeID)
+	currentEmployee, err := s.repo.GetEmployeeByEmployeeID(employeeID)
 	if err != nil {
 		if errors.Is(err, repositories.ErrRecordNotFound) {
 			return nil, ErrEmployeeNotFound
@@ -164,8 +172,17 @@ func (s *employeeService) UpdateEmployee(employeeID string, payload models.Updat
 
 	statusUpdated := false
 	if payload.EmploymentStatus != nil {
+		// 如果要将员工状态更新为"Departed"，需要进行离职检查
+		if *payload.EmploymentStatus == "Departed" && currentEmployee.EmploymentStatus != "Departed" {
+			// 执行离职前检查和处理
+			if err := s.handleEmployeeDeparture(employeeID); err != nil {
+				return nil, err
+			}
+		}
+
 		updates["employment_status"] = *payload.EmploymentStatus
 		statusUpdated = true
+
 		// 如果状态更新为 "Departed"
 		if *payload.EmploymentStatus == "Departed" {
 			if payload.TerminationDate != nil && *payload.TerminationDate != "" {
@@ -202,4 +219,54 @@ func (s *employeeService) UpdateEmployee(employeeID string, payload models.Updat
 	}
 
 	return s.repo.UpdateEmployee(employeeID, updates)
+}
+
+// handleEmployeeDeparture 处理员工离职时的业务逻辑
+func (s *employeeService) handleEmployeeDeparture(employeeID string) error {
+	ctx := context.Background()
+
+	// 1. 检查员工是否有使用中的手机号码（状态为 in_use）
+	assignedNumbers, err := s.mobileNumberRepo.FindAssignedToEmployee(ctx, employeeID)
+	if err != nil {
+		return err
+	}
+
+	// 过滤出状态为"使用中"的号码
+	var activeNumbers []models.MobileNumber
+	for _, number := range assignedNumbers {
+		if number.Status == string(models.StatusInUse) {
+			activeNumbers = append(activeNumbers, number)
+		}
+	}
+
+	// 如果有使用中的号码，拒绝离职
+	if len(activeNumbers) > 0 {
+		return ErrEmployeeHasActiveNumbers
+	}
+
+	// 2. 查找该员工作为办卡人的所有号码
+	applicantNumbers, err := s.mobileNumberRepo.FindByApplicantEmployeeID(ctx, employeeID)
+	if err != nil {
+		return err
+	}
+
+	// 3. 将办卡人的号码状态更新为 risk_pending（除了已经是终止状态的）
+	var numberIDsToUpdate []uint
+	for _, number := range applicantNumbers {
+		// 只更新非终止状态的号码
+		if number.Status != string(models.StatusDeactivated) &&
+			number.Status != string(models.StatusRiskPending) &&
+			number.Status != string(models.StatusUserReport) {
+			numberIDsToUpdate = append(numberIDsToUpdate, number.ID)
+		}
+	}
+
+	// 批量更新号码状态
+	if len(numberIDsToUpdate) > 0 {
+		if err := s.mobileNumberRepo.BatchUpdateStatus(ctx, numberIDsToUpdate, string(models.StatusRiskPending)); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

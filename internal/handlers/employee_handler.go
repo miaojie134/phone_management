@@ -286,6 +286,8 @@ func (h *EmployeeHandler) UpdateEmployee(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, services.ErrEmployeeNotFound) {
 			utils.RespondNotFoundError(c, "员工")
+		} else if errors.Is(err, services.ErrEmployeeHasActiveNumbers) {
+			utils.RespondAPIError(c, http.StatusBadRequest, "员工当前正在使用手机号码，请先回收号码后再办理离职", nil)
 		} else if err.Error() == "没有提供任何有效的更新字段" || strings.Contains(err.Error(), "无效的离职日期格式") {
 			utils.RespondAPIError(c, http.StatusBadRequest, err.Error(), nil)
 		} else {

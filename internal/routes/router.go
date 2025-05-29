@@ -66,12 +66,15 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 
 		// --- 员工路由 (先初始化，因为 MobileNumberService 依赖它) ---
 		employeeRepo := repositories.NewGormEmployeeRepository(db)
-		employeeService := services.NewEmployeeService(employeeRepo)
-		employeeHandler := handlers.NewEmployeeHandler(employeeService)
 
 		// --- 手机号码路由 ---
 		// 初始化手机号码相关的 repository, service, handler
 		mobileNumberRepo := repositories.NewGormMobileNumberRepository(db)
+
+		// 初始化employeeService，现在需要mobileNumberRepo依赖
+		employeeService := services.NewEmployeeService(employeeRepo, mobileNumberRepo)
+		employeeHandler := handlers.NewEmployeeHandler(employeeService)
+
 		// 将 employeeService 注入到 MobileNumberService
 		mobileNumberService := services.NewMobileNumberService(mobileNumberRepo, employeeService)
 		mobileNumberHandler := handlers.NewMobileNumberHandler(mobileNumberService)
@@ -132,7 +135,6 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 	}
 
 	// Swagger 文档路由 (如果使用 swaggo)
-	// r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler, ginSwagger.URL("/swagger/doc.json")))
 
 	return r

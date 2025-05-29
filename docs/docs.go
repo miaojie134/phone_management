@@ -560,7 +560,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "号码状态筛选 (例如: 闲置, 在用)",
+                        "description": "号码状态筛选 (例如: 闲置, 使用中)",
                         "name": "status",
                         "in": "query"
                     },
@@ -819,7 +819,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "校验目标号码是否为\"闲置\"状态，目标员工是否为\"在职\"状态。更新号码记录，关联当前使用人员工ID，将号码状态改为\"在用\"。创建一条新的号码使用历史记录。",
+                "description": "校验目标号码是否为\"闲置\"状态，目标员工是否为\"在职\"状态。更新号码记录，关联当前使用人员工ID，将号码状态改为\"使用中\"。创建一条新的号码使用历史记录。",
                 "consumes": [
                     "application/json"
                 ],
@@ -907,7 +907,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "校验目标号码是否为\"在用\"状态。更新号码记录，清空当前使用人员工ID，将号码状态改为\"闲置\"。更新上一条与该号码和使用人相关的号码使用历史记录，记录使用结束时间。",
+                "description": "校验目标号码是否为\"使用中\"状态。更新号码记录，清空当前使用人员工ID，将号码状态改为\"闲置\"。更新上一条与该号码和使用人相关的号码使用历史记录，记录使用结束时间。",
                 "consumes": [
                     "application/json"
                 ],
@@ -973,7 +973,7 @@ const docTemplate = `{
                         }
                     },
                     "409": {
-                        "description": "操作冲突 (例如：号码非在用状态，或未找到有效的分配记录)",
+                        "description": "操作冲突 (例如：号码非使用中状态，或未找到有效的分配记录)",
                         "schema": {
                             "$ref": "#/definitions/utils.APIErrorResponse"
                         }
@@ -1508,12 +1508,11 @@ const docTemplate = `{
             "required": [
                 "applicantEmployeeId",
                 "applicationDate",
-                "phoneNumber",
-                "status"
+                "phoneNumber"
             ],
             "properties": {
                 "applicantEmployeeId": {
-                    "description": "改为 string，代表业务工号",
+                    "description": "代表员工工号",
                     "type": "string"
                 },
                 "applicationDate": {
@@ -1533,14 +1532,8 @@ const docTemplate = `{
                     "maxLength": 255
                 },
                 "status": {
-                    "type": "string",
-                    "enum": [
-                        "闲置",
-                        "在用",
-                        "待注销",
-                        "已注销",
-                        "待核实-办卡人离职"
-                    ]
+                    "description": "移除状态验证，在业务层处理",
+                    "type": "string"
                 },
                 "vendor": {
                     "type": "string",
@@ -1793,8 +1786,7 @@ const docTemplate = `{
             "required": [
                 "applicantEmployeeId",
                 "applicationDate",
-                "phoneNumber",
-                "status"
+                "phoneNumber"
             ],
             "properties": {
                 "applicantEmployeeId": {
@@ -1837,15 +1829,8 @@ const docTemplate = `{
                     "maxLength": 255
                 },
                 "status": {
-                    "type": "string",
-                    "enum": [
-                        "闲置",
-                        "在用",
-                        "待注销",
-                        "已注销",
-                        "待核实-办卡人离职",
-                        "待核实-用户报告"
-                    ]
+                    "description": "使用英文常量存储",
+                    "type": "string"
                 },
                 "updatedAt": {
                     "type": "string"
@@ -1888,6 +1873,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
+                    "description": "英文状态值",
                     "type": "string"
                 }
             }
@@ -1938,6 +1924,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
+                    "description": "英文状态值",
                     "type": "string"
                 },
                 "updatedAt": {
@@ -1975,15 +1962,7 @@ const docTemplate = `{
                     "maxLength": 255
                 },
                 "status": {
-                    "type": "string",
-                    "enum": [
-                        "闲置",
-                        "在用",
-                        "待注销",
-                        "已注销",
-                        "待核实-办卡人离职",
-                        "待核实-用户报告"
-                    ]
+                    "type": "string"
                 },
                 "vendor": {
                     "type": "string",
@@ -2397,8 +2376,7 @@ var SwaggerInfo = &swag.Spec{
 	Description:      "",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
-	// LeftDelim:        "{{",
-	// RightDelim:       "}}",
+
 }
 
 func init() {

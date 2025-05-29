@@ -37,6 +37,10 @@ type MobileNumberRepository interface {
 	UnassignMobileNumber(numberID uint, reclaimDate time.Time) (*models.MobileNumber, error)
 	// FindAssignedToEmployee 查询分配给特定员工的手机号码
 	FindAssignedToEmployee(ctx context.Context, employeeID string) ([]models.MobileNumber, error)
+	// FindByApplicantEmployeeID 查询指定员工作为办卡人的手机号码
+	FindByApplicantEmployeeID(ctx context.Context, employeeID string) ([]models.MobileNumber, error)
+	// BatchUpdateStatus 批量更新多个号码的状态
+	BatchUpdateStatus(ctx context.Context, numberIDs []uint, status string) error
 	// UpdateLastConfirmationDate 更新号码的最后确认日期
 	UpdateLastConfirmationDate(ctx context.Context, numberID uint) error
 	// MarkAsReportedByUser 将号码标记为用户报告问题
@@ -359,6 +363,21 @@ func (r *gormMobileNumberRepository) FindAssignedToEmployee(ctx context.Context,
 		return nil, err
 	}
 	return numbers, nil
+}
+
+// FindByApplicantEmployeeID 查询指定员工作为办卡人的手机号码
+func (r *gormMobileNumberRepository) FindByApplicantEmployeeID(ctx context.Context, employeeID string) ([]models.MobileNumber, error) {
+	var numbers []models.MobileNumber
+	err := r.db.WithContext(ctx).Where("applicant_employee_id = ?", employeeID).Find(&numbers).Error
+	if err != nil {
+		return nil, err
+	}
+	return numbers, nil
+}
+
+// BatchUpdateStatus 批量更新多个号码的状态
+func (r *gormMobileNumberRepository) BatchUpdateStatus(ctx context.Context, numberIDs []uint, status string) error {
+	return r.db.WithContext(ctx).Model(&models.MobileNumber{}).Where("id IN ?", numberIDs).Update("status", status).Error
 }
 
 // UpdateLastConfirmationDate 更新号码的最后确认日期
