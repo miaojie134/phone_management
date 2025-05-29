@@ -62,12 +62,17 @@ func Login(c *gin.Context) {
 	}
 
 	expirationTime := time.Now().Add(24 * time.Hour)
-	claims := &jwt.RegisteredClaims{
-		ID:        uuid.NewString(),
-		Subject:   user.Username,
-		ExpiresAt: jwt.NewNumericDate(expirationTime),
-		Issuer:    "phone_system",            // 可选，签发者
-		Audience:  jwt.ClaimStrings{"admin"}, // 可选，受众
+	claims := &auth.Claims{
+		UserID:   uint(user.ID),
+		Username: user.Username,
+		Role:     user.Role,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        uuid.NewString(),
+			Subject:   user.Username,
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+			Issuer:    "phone_system",            // 可选，签发者
+			Audience:  jwt.ClaimStrings{"admin"}, // 可选，受众
+		},
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

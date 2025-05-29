@@ -139,3 +139,51 @@ func JWTMiddleware() gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// GetCurrentUsername 从Gin上下文中获取当前登录用户的用户名
+// 返回用户名和是否成功获取的标志
+func GetCurrentUsername(c *gin.Context) (string, bool) {
+	username, exists := c.Get("username")
+	if !exists {
+		return "", false
+	}
+
+	usernameStr, ok := username.(string)
+	if !ok || usernameStr == "" {
+		return "", false
+	}
+
+	return usernameStr, true
+}
+
+// GetCurrentUserID 从Gin上下文中获取当前登录用户的ID
+// 返回用户ID和是否成功获取的标志
+func GetCurrentUserID(c *gin.Context) (uint, bool) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		return 0, false
+	}
+
+	userIDUint, ok := userID.(uint)
+	if !ok {
+		return 0, false
+	}
+
+	return userIDUint, true
+}
+
+// GetCurrentUserRole 从Gin上下文中获取当前登录用户的角色
+// 返回角色和是否成功获取的标志
+func GetCurrentUserRole(c *gin.Context) (string, bool) {
+	role, exists := c.Get("role")
+	if !exists {
+		return "", false
+	}
+
+	roleStr, ok := role.(string)
+	if !ok || roleStr == "" {
+		return "", false
+	}
+
+	return roleStr, true
+}

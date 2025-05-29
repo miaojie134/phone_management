@@ -1,7 +1,7 @@
 企业手机号码管理系统 MVP - 后端功能及 API 接口文档
 
-版本： 1.1
-日期： 2025 年 5 月 15 日
+版本： 1.2
+日期： 2025 年 5 月 29 日
 
 目录
 
@@ -155,6 +155,9 @@ JWT 详细信息:
 - Claims:
   - `jti` (JWT ID): UUID
   - `sub` (Subject): 用户名
+  - `user_id` (用户 ID): 系统用户 ID
+  - `username` (用户名): 系统用户名，用于记录操作历史
+  - `role` (角色): 用户角色
   - `exp` (Expiration Time): 过期时间戳
   - `iss` (Issuer): "phone_system"
   - `aud` (Audience): ["admin"]
@@ -208,14 +211,14 @@ POST /
 响应 (500 Internal Server Error): { "error": "创建手机号码失败", "details": "..." }
 
 GET /
-描述: 获取手机号码列表，支持分页、搜索和筛选。
+描述: 获取手机号码列表，支持分页、搜索和筛选。注意：风险号码(risk_pending)通过专门的风险号码接口获取，此接口不返回风险号码。
 查询参数:
 page (可选, number, 默认 1): 页码。
 limit (可选, number, 默认 10): 每页数量。
 sortBy (可选, string): 排序字段 (例如: phoneNumber, applicationDate, status)。
 sortOrder (可选, string, 'asc'或'desc', 默认 'asc'): 排序顺序。
 search (可选, string): 搜索关键词 (匹配手机号、使用人姓名/工号、办卡人姓名/工号)。
-status (可选, string): 号码状态筛选 (可选值: idle, in_use, pending_deactivation, deactivated, risk_pending, user_reported)。
+status (可选, string): 号码状态筛选 (可选值: idle, in_use, pending_deactivation, deactivated, user_reported，不包括 risk_pending)。
 applicantStatus (可选, string, 'Active'或'Departed'): 办卡人当前在职状态筛选。
 
 响应 (200 OK):
@@ -263,12 +266,13 @@ phoneNumber (string, required): 手机号码字符串。
 响应 (500 Internal Server Error): { "error": "获取手机号码详情失败", "details": "..." }
 
 POST /mobilenumbers/{phoneNumber}/update
-描述: 更新指定手机号码的信息 (主要用于更新状态、用途、供应商、备注)。当号码状态变更为"已注销"时，自动记录注销时间。至少需要提供一个有效的更新字段。
+描述: 更新指定手机号码的信息 (主要用于更新状态、用途、供应商、备注)。当号码状态变更为"已注销"时，自动记录注销时间。至少需要提供一个有效的更新字段。注意：风险号码(risk_pending)不允许通过此接口更新，请使用专门的风险处理接口。
 
 重要业务规则约束:
 
 - 不能直接将状态更新为 `in_use`，必须通过分配操作 (POST /assign)
 - 处于 `in_use` 状态的号码不能直接更新状态，必须先通过回收操作 (POST /unassign)
+- 风险号码(risk_pending)不允许通过此接口更新，必须使用专门的风险处理接口
 
 路径参数:
 phoneNumber (string, required): 手机号码字符串。
@@ -283,6 +287,8 @@ phoneNumber (string, required): 手机号码字符串。
 响应 (200 OK): 返回更新后的 `MobileNumber` 对象。
 
 响应 (400 Bad Request): { "error": "请求参数错误或数据校验失败 / 没有提供任何有效的更新字段 / 无效的手机号码格式", "details": "..." }
+响应 (401 Unauthorized): { "error": "未认证或 Token 无效/过期" }
+响应 (403 Forbidden): { "error": "风险号码不允许通过常规更新接口修改", "details": "请使用专门的风险处理接口 /handle-risk" }
 响应 (404 Not Found): { "error": "手机号码未找到" }
 响应 (500 Internal Server Error): { "error": "更新手机号码失败", "details": "..." }
 
@@ -332,6 +338,86 @@ phoneNumber (string, required): 手机号码字符串。
 响应 (404 Not Found): { "error": "手机号码未找到" }
 响应 (409 Conflict): { "error": "操作冲突 (例如：号码非在用状态，或未找到有效的分配记录)", "details": "..." }
 响应 (500 Internal Server Error): { "error": "回收手机号码失败", "details": "..." }
+
+GET /mobilenumbers/risk-pending
+描述: 获取风险号码列表，支持分页、搜索和筛选。专门用于管理状态为 risk_pending 的手机号码。
+查询参数:
+page (可选, number, 默认 1): 页码。
+limit (可选, number, 默认 10): 每页数量。
+sortBy (可选, string): 排序字段 (例如: phoneNumber, applicationDate, status)。
+sortOrder (可选, string, 'asc'或'desc', 默认 'desc'): 排序顺序。
+search (可选, string): 搜索关键词 (匹配手机号、办卡人姓名、当前使用人姓名)。
+applicantStatus (可选, string, 'Active'或'Departed'): 办卡人在职状态筛选。
+
+响应 (200 OK):
+{
+"data": {
+"items": [ /* RiskNumberResponse 对象列表 */ ],
+"pagination": {
+"totalItems": 50,
+"totalPages": 5,
+"currentPage": 1,
+"pageSize": 10
+}
+},
+"message": "风险号码列表获取成功"
+}
+
+`RiskNumberResponse` 对象结构 (继承自 MobileNumberResponse 并增加风险相关信息):
+{
+"id": 123,
+"phoneNumber": "13800138000",
+"applicantEmployeeId": "EMP001",
+"applicantName": "张三",
+"applicantStatus": "Departed",
+"applicantDepartureDate": "2024-04-15T00:00:00Z", // 办卡人离职日期
+"daysSinceDeparture": 30, // 离职天数
+"applicationDate": "2023-01-15T00:00:00Z",
+"currentEmployeeId": "EMP002",
+"currentUserName": "李四",
+"status": "risk_pending",
+"purpose": "办公用",
+"vendor": "中国移动",
+"remarks": "待核实",
+"cancellationDate": null,
+"createdAt": "2023-01-15T10:00:00Z",
+"updatedAt": "2024-04-15T10:00:00Z"
+}
+
+响应 (400 Bad Request): { "error": "请求参数错误", "details": "..." }
+响应 (401 Unauthorized): { "error": "未认证或 Token 无效/过期" }
+响应 (500 Internal Server Error): { "error": "获取风险号码列表失败", "details": "..." }
+
+POST /mobilenumbers/{phoneNumber}/handle-risk
+描述: 处理状态为 risk_pending 的号码，支持变更办卡人、回收号码、注销号码三种操作。
+路径参数:
+phoneNumber (string, required): 手机号码字符串。
+请求体: (`HandleRiskNumberPayload`)
+{
+"action": "change_applicant", // 操作类型 (必填, 枚举: 'change_applicant', 'reclaim', 'deactivate')
+"newApplicantEmployeeId": "EMP003", // 新办卡人员工业务工号 (变更办卡人时必填)
+"remarks": "因原办卡人离职，变更至当前使用人" // 备注 (可选, string, max 500)
+}
+
+支持的操作类型:
+
+- `change_applicant`: 变更办卡人 - 需要提供 newApplicantEmployeeId，验证新办卡人存在且在职
+- `reclaim`: 回收号码 - 将号码设为闲置状态，清空当前使用人
+- `deactivate`: 注销号码 - 将号码状态设为已注销，记录注销时间
+
+业务逻辑校验:
+
+- 只能处理状态为 `risk_pending` 的号码
+- 变更办卡人时，新办卡人必须存在且为在职状态
+- 创建办卡人变更历史记录（变更操作时）
+- 操作员工必须存在且为在职状态
+
+响应 (200 OK): 返回处理后的 `MobileNumber` 对象。
+
+响应 (400 Bad Request): { "error": "请求参数错误、数据校验失败或业务逻辑错误", "details": "例如：变更办卡人时必须提供新办卡人员工 ID / 只能处理状态为风险待核实的号码" }
+响应 (401 Unauthorized): { "error": "未认证或 Token 无效/过期" }
+响应 (404 Not Found): { "error": "手机号码未找到或员工未找到", "details": "..." }
+响应 (500 Internal Server Error): { "error": "处理风险号码失败", "details": "..." }
 
 3.4 员工 API (/api/v1/employees) (均需要认证)
 POST /
@@ -644,6 +730,19 @@ createdAt (TIMESTAMP, NOT NULL, autoCreateTime) - 创建时间 (由 GORM 自动�
 updatedAt (TIMESTAMP, NOT NULL, autoUpdateTime) - 更新时间 (由 GORM 自动管理)
 deletedAt (TIMESTAMP, NULL, INDEX) - 软删除时间 (由 GORM 自动管理)
 
+NumberApplicantHistory (号码办卡人变更历史表)
+描述: 记录手机号码办卡人的变更历史，支持风险号码处理流程中的办卡人变更操作。
+
+id (PK, UINT AUTO_INCREMENT, NOT NULL) - 主键 ID
+mobileNumberDbId (FK, UINT, NOT NULL) - 手机号码记录的数据库 ID (关联 MobileNumbers.id)
+previousApplicantId (VARCHAR(50), NOT NULL) - 原办卡人员工业务工号 (关联 Employees.employeeId)
+newApplicantId (VARCHAR(50), NOT NULL) - 新办卡人员工业务工号 (关联 Employees.employeeId)
+changeDate (TIMESTAMP, NOT NULL) - 变更日期时间
+operatorUsername (VARCHAR(50), NULL) - 系统操作员用户名 (关联 Users.username)
+remarks (VARCHAR(500), NULL) - 备注
+createdAt (TIMESTAMP, NOT NULL, autoCreateTime) - 创建时间 (由 GORM 自动管理)
+updatedAt (TIMESTAMP, NOT NULL, autoUpdateTime) - 更新时间 (由 GORM 自动管理)
+
 VerificationTokens (号码确认令牌表) (新)
 id (PK, UINT AUTO_INCREMENT, NOT NULL) - 主键 ID
 employeeId (VARCHAR(10), NOT NULL, INDEX) - 关联的员工业务工号 (参照 Employees.employeeId)
@@ -729,7 +828,6 @@ API 认证: 确保所有敏感 API 都受到 JWT 或类似机制的保护。
    ├── configs/ # (建议) 配置文件目录 (例如 config.yaml)
    ├── internal/
    │ ├── auth/ # (建议) 存放认证授权相关逻辑 (JWT 生成、校验、中间件等)
-   │ ├── handlers/ # HTTP 请求处理器 (Controller 层)
    │ │ ├── auth_handler.go # 处理 /api/v1/auth 相关请求
    │ │ ├── employee_handler.go # 处理 /api/v1/employees 相关请求 (包含员工数据导入)
    │ │ ├── mobilenumber_handler.go # 处理 /api/v1/mobilenumbers 相关请求 (包含号码数据导入)

@@ -142,7 +142,6 @@ type MobileNumberBasicInfo struct {
 type HandleRiskNumberPayload struct {
 	Action                 string  `json:"action" binding:"required"`                            // 操作类型：变更办卡人、回收、注销
 	NewApplicantEmployeeID *string `json:"newApplicantEmployeeId,omitempty" binding:"omitempty"` // 新办卡人员工业务工号（变更办卡人时必填）
-	ChangeReason           string  `json:"changeReason" binding:"required,max=255"`              // 变更原因
 	Remarks                string  `json:"remarks" binding:"omitempty,max=500"`                  // 备注
 }
 

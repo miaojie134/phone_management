@@ -20,7 +20,7 @@ var ErrRecordNotFound = gorm.ErrRecordNotFound
 var ErrMobileNumberNotInIdleStatus = errors.New("手机号码不是闲置状态")
 var ErrEmployeeNotFound = errors.New("员工未找到")
 var ErrEmployeeNotActive = errors.New("员工不是在职状态")
-var ErrMobileNumberNotInUseStatus = errors.New("手机号码不是在用状态")
+var ErrMobileNumberNotRecoverable = errors.New("手机号码不允许回收，仅支持在用、风险待核实、用户报告状态的号码回收")
 var ErrNoActiveUsageHistoryFound = errors.New("未找到该号码当前有效的分配记录")
 
 // MobileNumberRepository 定义了手机号码数据仓库的接口
@@ -44,7 +44,7 @@ type MobileNumberRepository interface {
 	// GetRiskPendingNumbers 获取风险号码列表
 	GetRiskPendingNumbers(page, limit int, sortBy, sortOrder, search, applicantStatus string) ([]models.RiskNumberResponse, int64, error)
 	// HandleRiskNumber 处理风险号码（变更办卡人、回收、注销）
-	HandleRiskNumber(ctx context.Context, phoneNumber string, payload models.HandleRiskNumberPayload, operatorEmployeeID string) (*models.MobileNumber, error)
+	HandleRiskNumber(ctx context.Context, phoneNumber string, payload models.HandleRiskNumberPayload, operatorUsername string) (*models.MobileNumber, error)
 	// UpdateLastConfirmationDate 更新号码的最后确认日期
 	UpdateLastConfirmationDate(ctx context.Context, numberID uint) error
 	// MarkAsReportedByUser 将号码标记为用户报告问题
@@ -99,7 +99,8 @@ func (r *gormMobileNumberRepository) GetMobileNumbers(page, limit int, sortBy, s
 	// 基础查询构建器 (不包含 SELECT specific to response, or ORDER/LIMIT/OFFSET yet)
 	queryBuilder := r.db.Model(&models.MobileNumber{}).
 		Joins("LEFT JOIN employees AS applicant ON applicant.employee_id = mobile_numbers.applicant_employee_id").
-		Joins("LEFT JOIN employees AS current_user ON current_user.employee_id = mobile_numbers.current_employee_id")
+		Joins("LEFT JOIN employees AS current_user ON current_user.employee_id = mobile_numbers.current_employee_id").
+		Where("mobile_numbers.status != ?", string(models.StatusRiskPending)) // 排除风险号码
 
 	// 应用可选的过滤条件
 	if search != "" {
@@ -327,28 +328,42 @@ func (r *gormMobileNumberRepository) UnassignMobileNumber(numberID uint, reclaim
 			return err
 		}
 
-		if mobileNumber.Status != string(models.StatusInUse) {
-			return ErrMobileNumberNotInUseStatus
+		// 检查号码状态是否允许回收（支持：in_use, risk_pending, user_reported）
+		allowedStatuses := []string{
+			string(models.StatusInUse),
+			string(models.StatusRiskPending),
+			string(models.StatusUserReport),
 		}
 
-		if mobileNumber.CurrentEmployeeID == nil || *mobileNumber.CurrentEmployeeID == "" {
-			return errors.New("数据不一致：使用号码没有关联当前用户业务工号")
-		}
-
-		// 查找当前有效的使用历史记录并更新结束时间
-		var usageHistory models.NumberUsageHistory
-		if err := tx.Where("mobile_number_db_id = ? AND employee_id = ? AND end_date IS NULL", numberID, *mobileNumber.CurrentEmployeeID).
-			Order("start_date DESC").
-			First(&usageHistory).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return ErrNoActiveUsageHistoryFound
+		statusAllowed := false
+		for _, allowedStatus := range allowedStatuses {
+			if mobileNumber.Status == allowedStatus {
+				statusAllowed = true
+				break
 			}
-			return err
 		}
 
-		// 更新使用历史的结束时间
-		if err := tx.Model(&usageHistory).Update("end_date", reclaimDate).Error; err != nil {
-			return err
+		if !statusAllowed {
+			return ErrMobileNumberNotRecoverable
+		}
+
+		// 对于有当前使用人的号码，需要更新使用历史
+		if mobileNumber.CurrentEmployeeID != nil && *mobileNumber.CurrentEmployeeID != "" {
+			// 查找当前有效的使用历史记录并更新结束时间
+			var usageHistory models.NumberUsageHistory
+			if err := tx.Where("mobile_number_db_id = ? AND employee_id = ? AND end_date IS NULL", numberID, *mobileNumber.CurrentEmployeeID).
+				Order("start_date DESC").
+				First(&usageHistory).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return ErrNoActiveUsageHistoryFound
+				}
+				return err
+			}
+
+			// 更新使用历史的结束时间
+			if err := tx.Model(&usageHistory).Update("end_date", reclaimDate).Error; err != nil {
+				return err
+			}
 		}
 
 		mobileNumber.CurrentEmployeeID = nil // 清空业务工号
@@ -486,7 +501,7 @@ func (r *gormMobileNumberRepository) GetRiskPendingNumbers(page, limit int, sort
 }
 
 // HandleRiskNumber 处理风险号码（变更办卡人、回收、注销）
-func (r *gormMobileNumberRepository) HandleRiskNumber(ctx context.Context, phoneNumber string, payload models.HandleRiskNumberPayload, operatorEmployeeID string) (*models.MobileNumber, error) {
+func (r *gormMobileNumberRepository) HandleRiskNumber(ctx context.Context, phoneNumber string, payload models.HandleRiskNumberPayload, operatorUsername string) (*models.MobileNumber, error) {
 	var mobileNumber models.MobileNumber
 
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -528,8 +543,7 @@ func (r *gormMobileNumberRepository) HandleRiskNumber(ctx context.Context, phone
 				PreviousApplicantID: mobileNumber.ApplicantEmployeeID,
 				NewApplicantID:      *payload.NewApplicantEmployeeID,
 				ChangeDate:          time.Now(),
-				ChangeReason:        payload.ChangeReason,
-				OperatorEmployeeID:  &operatorEmployeeID,
+				OperatorUsername:    &operatorUsername,
 				Remarks:             payload.Remarks,
 			}
 			if err := tx.Create(history).Error; err != nil {

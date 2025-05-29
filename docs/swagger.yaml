@@ -278,10 +278,6 @@ definitions:
       action:
         description: 操作类型：变更办卡人、回收、注销
         type: string
-      changeReason:
-        description: 变更原因
-        maxLength: 255
-        type: string
       newApplicantEmployeeId:
         description: 新办卡人员工业务工号（变更办卡人时必填）
         type: string
@@ -291,7 +287,6 @@ definitions:
         type: string
     required:
     - action
-    - changeReason
     type: object
   models.MobileNumber:
     properties:
@@ -1053,7 +1048,7 @@ paths:
     get:
       consumes:
       - application/json
-      description: 根据查询参数获取手机号码列表，支持分页、搜索和筛选
+      description: 根据查询参数获取手机号码列表，支持分页、搜索和筛选。注意：风险号码(risk_pending)通过专门的风险号码接口获取，此接口不返回风险号码。
       parameters:
       - default: 1
         description: 页码
@@ -1077,7 +1072,7 @@ paths:
         in: query
         name: search
         type: string
-      - description: '号码状态筛选 (例如: 闲置, 使用中)'
+      - description: '号码状态筛选 (例如: 闲置, 使用中，不包括风险号码)'
         in: query
         name: status
         type: string
@@ -1302,7 +1297,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: 校验目标号码是否为"使用中"状态。更新号码记录，清空当前使用人员工ID，将号码状态改为"闲置"。更新上一条与该号码和使用人相关的号码使用历史记录，记录使用结束时间。
+      description: 回收手机号码，支持在用(in_use)、风险待核实(risk_pending)、用户报告(user_reported)状态的号码。对于有当前使用人的号码，会更新使用历史记录的结束时间；对于没有当前使用人的号码，直接设为闲置状态。
       parameters:
       - description: 手机号码字符串
         in: path
@@ -1327,7 +1322,7 @@ paths:
                   $ref: '#/definitions/models.MobileNumber'
               type: object
         "400":
-          description: 请求参数错误 / 无效的日期格式 / 无效的手机号码格式" // 添加了无效手机号格式的说明
+          description: 请求参数错误 / 无效的日期格式 / 无效的手机号码格式
           schema:
             $ref: '#/definitions/utils.APIErrorResponse'
         "401":
@@ -1339,7 +1334,7 @@ paths:
           schema:
             $ref: '#/definitions/utils.APIErrorResponse'
         "409":
-          description: 操作冲突 (例如：号码非使用中状态，或未找到有效的分配记录)
+          description: 操作冲突 (例如：号码状态不允许回收，或未找到有效的分配记录)
           schema:
             $ref: '#/definitions/utils.APIErrorResponse'
         "500":
@@ -1355,7 +1350,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: 更新指定手机号码的信息 (主要用于更新状态、用途、供应商、备注)。当号码状态变更为"已注销"时，自动记录注销时间。
+      description: 更新指定手机号码的信息 (主要用于更新状态、用途、供应商、备注)。当号码状态变更为"已注销"时，自动记录注销时间。注意：风险号码(risk_pending)不允许通过此接口更新，请使用专门的风险处理接口。
       parameters:
       - description: 手机号码字符串
         in: path
@@ -1381,11 +1376,15 @@ paths:
                   $ref: '#/definitions/models.MobileNumber'
               type: object
         "400":
-          description: 请求参数错误或数据校验失败 / 没有提供任何更新字段 / 无效的手机号码格式" // 更新了描述
+          description: 请求参数错误或数据校验失败 / 没有提供任何更新字段 / 无效的手机号码格式
           schema:
             $ref: '#/definitions/utils.APIErrorResponse'
         "401":
           description: 未认证或 Token 无效/过期
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "403":
+          description: 风险号码不允许通过常规接口更新
           schema:
             $ref: '#/definitions/utils.APIErrorResponse'
         "404":

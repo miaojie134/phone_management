@@ -32,7 +32,7 @@ type MobileNumberService interface {
 	ResolveApplicantNameToID(applicantName string) (string, error)                                             //
 	// 风险号码处理相关方法
 	GetRiskPendingNumbers(page, limit int, sortBy, sortOrder, search, applicantStatus string) ([]models.RiskNumberResponse, int64, error)
-	HandleRiskNumber(phoneNumber string, payload models.HandleRiskNumberPayload, operatorEmployeeID string) (*models.MobileNumber, error)
+	HandleRiskNumber(phoneNumber string, payload models.HandleRiskNumberPayload, operatorUsername string) (*models.MobileNumber, error)
 }
 
 // mobileNumberService 是 MobileNumberService 的实现
@@ -100,6 +100,11 @@ func (s *mobileNumberService) UpdateMobileNumberByPhoneNumber(phoneNumber string
 			return nil, ErrMobileNumberNotFound
 		}
 		return nil, err // 其他数据库错误
+	}
+
+	// 1. 检查是否为风险号码，风险号码不允许通过常规更新接口修改
+	if mobileNumber.Status == string(models.StatusRiskPending) {
+		return nil, errors.New("风险号码不允许通过常规更新接口修改，请使用专门的风险处理接口")
 	}
 
 	updates := make(map[string]interface{})
@@ -180,8 +185,7 @@ func (s *mobileNumberService) AssignMobileNumber(phoneNumber string, employeeBus
 			// 但为保险起见，仍做转换
 			return nil, ErrMobileNumberNotFound
 		}
-		// 其他特定错误如 ErrMobileNumberNotInIdleStatus, ErrEmployeeNotFound (如果仓库层校验员工失败)
-		// ErrEmployeeNotActive (如果仓库层校验员工状态失败) 会直接从 repo 传递上来。
+		// 其他特定错误如 ErrMobileNumberNotRecoverable, ErrNoActiveUsageHistoryFound 会直接从 repo 传递上来
 		return nil, err
 	}
 	return assignedMobileNumber, nil
@@ -202,7 +206,7 @@ func (s *mobileNumberService) UnassignMobileNumberByPhoneNumber(phoneNumber stri
 	unassignedMobileNumber, err := s.repo.UnassignMobileNumber(mobileNumber.ID, reclaimDate)
 	if err != nil {
 		// repo.UnassignMobileNumber 内部会处理 ErrRecordNotFound，这里不需要再次转换
-		// 其他特定错误如 ErrMobileNumberNotInUseStatus, ErrNoActiveUsageHistoryFound 会直接从 repo 传递上来
+		// 其他特定错误如 ErrMobileNumberNotRecoverable, ErrNoActiveUsageHistoryFound 会直接从 repo 传递上来
 		return nil, err
 	}
 	return unassignedMobileNumber, nil
@@ -239,19 +243,13 @@ func (s *mobileNumberService) GetRiskPendingNumbers(page, limit int, sortBy, sor
 }
 
 // HandleRiskNumber 处理处理风险号码的业务逻辑
-func (s *mobileNumberService) HandleRiskNumber(phoneNumber string, payload models.HandleRiskNumberPayload, operatorEmployeeID string) (*models.MobileNumber, error) {
-	// 1. 验证 operatorEmployeeID (操作员业务工号) 是否有效且在职
-	operator, err := s.employeeService.GetEmployeeByEmployeeID(operatorEmployeeID)
-	if err != nil {
-		return nil, err // err 可能是 ErrEmployeeNotFound 或其他DB错误
-	}
-	if operator.EmploymentStatus != "Active" { // 确保操作员在职才能处理号码, 直接与字符串 "Active" 比较
-		return nil, repositories.ErrEmployeeNotActive // 复用仓库层的错误，表示操作员非在职
-	}
+func (s *mobileNumberService) HandleRiskNumber(phoneNumber string, payload models.HandleRiskNumberPayload, operatorUsername string) (*models.MobileNumber, error) {
+	// 注意：operatorUsername 是系统用户名，不是公司员工ID
+	// 系统用户验证应该在认证中间件中完成，这里直接使用传入的用户名
 
-	// 2. 调用仓库层处理风险号码
+	// 调用仓库层处理风险号码
 	ctx := context.Background()
-	handledMobileNumber, err := s.repo.HandleRiskNumber(ctx, phoneNumber, payload, operatorEmployeeID)
+	handledMobileNumber, err := s.repo.HandleRiskNumber(ctx, phoneNumber, payload, operatorUsername)
 	if err != nil {
 		if errors.Is(err, repositories.ErrRecordNotFound) {
 			return nil, ErrMobileNumberNotFound

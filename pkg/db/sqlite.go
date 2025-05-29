@@ -95,6 +95,7 @@ func InitDB() {
 		&models.Employee{},
 		&models.MobileNumber{},
 		&models.NumberUsageHistory{},
+		&models.NumberApplicantHistory{},
 		&models.VerificationToken{},
 		&models.UserReportedIssue{},
 		&models.VerificationBatchTask{},

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/phone_management/internal/auth"
 	"github.com/phone_management/internal/models"
 	"github.com/phone_management/internal/repositories" // 用于判断 ErrPhoneNumberExists
 	"github.com/phone_management/internal/services"
@@ -120,7 +121,7 @@ func (h *MobileNumberHandler) CreateMobileNumber(c *gin.Context) {
 
 // GetMobileNumbers godoc
 // @Summary 获取手机号码列表
-// @Description 根据查询参数获取手机号码列表，支持分页、搜索和筛选
+// @Description 根据查询参数获取手机号码列表，支持分页、搜索和筛选。注意：风险号码(risk_pending)通过专门的风险号码接口获取，此接口不返回风险号码。
 // @Tags MobileNumbers
 // @Accept json
 // @Produce json
@@ -129,7 +130,7 @@ func (h *MobileNumberHandler) CreateMobileNumber(c *gin.Context) {
 // @Param sortBy query string false "排序字段 (例如: phoneNumber, applicationDate)"
 // @Param sortOrder query string false "排序顺序 ('asc'或'desc')"
 // @Param search query string false "搜索关键词 (匹配手机号、使用人、办卡人)"
-// @Param status query string false "号码状态筛选 (例如: 闲置, 使用中)"
+// @Param status query string false "号码状态筛选 (例如: 闲置, 使用中，不包括风险号码)"
 // @Param applicantStatus query string false "办卡人当前在职状态筛选 ('Active'或'Departed')"
 // @Success 200 {object} utils.SuccessResponse{data=PagedMobileNumbersData} "成功响应，包含号码列表和分页信息"
 // @Failure 400 {object} utils.APIErrorResponse "请求参数错误"
@@ -237,18 +238,19 @@ func (h *MobileNumberHandler) GetMobileNumberByID(c *gin.Context) {
 
 // UpdateMobileNumber godoc
 // @Summary 更新指定手机号码的信息
-// @Description 更新指定手机号码的信息 (主要用于更新状态、用途、供应商、备注)。当号码状态变更为"已注销"时，自动记录注销时间。
+// @Description 更新指定手机号码的信息 (主要用于更新状态、用途、供应商、备注)。当号码状态变更为"已注销"时，自动记录注销时间。注意：风险号码(risk_pending)不允许通过此接口更新，请使用专门的风险处理接口。
 // @Tags MobileNumbers
 // @Accept json
 // @Produce json
 // @Param phoneNumber path string true "手机号码字符串"
 // @Param mobileNumberUpdate body models.MobileNumberUpdatePayload true "要更新的手机号码字段"
 // @Success 200 {object} utils.SuccessResponse{data=models.MobileNumber} "更新后的号码对象"
-// @Failure 400 {object} utils.APIErrorResponse "请求参数错误或数据校验失败 / 没有提供任何更新字段 / 无效的手机号码格式" // 更新了描述
+// @Failure 400 {object} utils.APIErrorResponse "请求参数错误或数据校验失败 / 没有提供任何更新字段 / 无效的手机号码格式"
 // @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
+// @Failure 403 {object} utils.APIErrorResponse "风险号码不允许通过常规接口更新"
 // @Failure 404 {object} utils.APIErrorResponse "号码未找到"
 // @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
-// @Router /mobilenumbers/{phoneNumber}/update [post] // 注意：API路径通常是 /mobilenumbers/{phoneNumber}，动词是 PUT 或 PATCH。POST用于创建或特定动作。如果这是特定动作接口，路径可以是 /update。
+// @Router /mobilenumbers/{phoneNumber}/update [post]
 // @Security BearerAuth
 func (h *MobileNumberHandler) UpdateMobileNumber(c *gin.Context) {
 	phoneNumberStr := c.Param("phoneNumber") // 读取 phoneNumber 字符串
@@ -284,6 +286,8 @@ func (h *MobileNumberHandler) UpdateMobileNumber(c *gin.Context) {
 			utils.RespondAPIError(c, http.StatusBadRequest, err.Error(), "请使用分配接口 /assign 来将号码分配给用户")
 		} else if strings.Contains(err.Error(), "号码当前为'使用中'状态") {
 			utils.RespondAPIError(c, http.StatusConflict, err.Error(), "请使用回收接口 /unassign 来回收号码后再进行状态更新")
+		} else if strings.Contains(err.Error(), "风险号码不允许通过常规更新接口修改") {
+			utils.RespondAPIError(c, http.StatusForbidden, "风险号码不允许通过常规更新接口修改", "请使用专门的风险处理接口 /handle-risk")
 		} else {
 			utils.RespondInternalServerError(c, "更新手机号码失败", err.Error())
 		}
@@ -353,17 +357,17 @@ func (h *MobileNumberHandler) AssignMobileNumber(c *gin.Context) {
 
 // UnassignMobileNumber godoc
 // @Summary 从当前使用人处回收指定手机号码
-// @Description 校验目标号码是否为"使用中"状态。更新号码记录，清空当前使用人员工ID，将号码状态改为"闲置"。更新上一条与该号码和使用人相关的号码使用历史记录，记录使用结束时间。
+// @Description 回收手机号码，支持在用(in_use)、风险待核实(risk_pending)、用户报告(user_reported)状态的号码。对于有当前使用人的号码，会更新使用历史记录的结束时间；对于没有当前使用人的号码，直接设为闲置状态。
 // @Tags MobileNumbers
 // @Accept json
 // @Produce json
 // @Param phoneNumber path string true "手机号码字符串"
 // @Param unassignPayload body models.MobileNumberUnassignPayload false "回收信息 (可选，包含回收日期 YYYY-MM-DD)"
 // @Success 200 {object} utils.SuccessResponse{data=models.MobileNumber} "成功回收后的号码对象"
-// @Failure 400 {object} utils.APIErrorResponse "请求参数错误 / 无效的日期格式 / 无效的手机号码格式" // 添加了无效手机号格式的说明
+// @Failure 400 {object} utils.APIErrorResponse "请求参数错误 / 无效的日期格式 / 无效的手机号码格式"
 // @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
 // @Failure 404 {object} utils.APIErrorResponse "手机号码未找到"
-// @Failure 409 {object} utils.APIErrorResponse "操作冲突 (例如：号码非使用中状态，或未找到有效的分配记录)"
+// @Failure 409 {object} utils.APIErrorResponse "操作冲突 (例如：号码状态不允许回收，或未找到有效的分配记录)"
 // @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
 // @Router /mobilenumbers/{phoneNumber}/unassign [post]
 // @Security BearerAuth
@@ -407,10 +411,10 @@ func (h *MobileNumberHandler) UnassignMobileNumber(c *gin.Context) {
 		switch {
 		case errors.Is(err, services.ErrMobileNumberNotFound):
 			utils.RespondNotFoundError(c, "手机号码")
-		case errors.Is(err, repositories.ErrMobileNumberNotInUseStatus):
-			utils.RespondAPIError(c, http.StatusConflict, "手机号码不是使用状态，无法回收", err.Error())
+		case errors.Is(err, repositories.ErrMobileNumberNotRecoverable):
+			utils.RespondAPIError(c, http.StatusConflict, "手机号码状态不允许回收", "仅支持在用、风险待核实、用户报告状态的号码回收")
 		case errors.Is(err, repositories.ErrNoActiveUsageHistoryFound):
-			utils.RespondAPIError(c, http.StatusConflict, "未找到该号码当前有效的分配记录，无法回收", err.Error())
+			utils.RespondAPIError(c, http.StatusConflict, "未找到该号码当前有效的分配记录", err.Error())
 		case strings.Contains(err.Error(), "数据不一致：使用号码没有关联当前用户"): // 这个错误可能来自 service 层更深处
 			utils.RespondAPIError(c, http.StatusInternalServerError, "服务器内部错误: 数据不一致", err.Error())
 		default:
@@ -697,18 +701,21 @@ func (h *MobileNumberHandler) HandleRiskNumber(c *gin.Context) {
 		}
 	}
 
-	// TODO: 从JWT token中获取操作员工业务工号，这里暂时使用硬编码
-	// 在实际应用中，应该从认证中间件设置的上下文中获取当前用户信息
-	operatorEmployeeID := "ADMIN001" // 临时硬编码，实际应从JWT token获取
+	// 从JWT token中获取当前操作员用户名
+	operatorUsername, ok := auth.GetCurrentUsername(c)
+	if !ok {
+		utils.RespondInternalServerError(c, "无法获取当前操作员信息", "用户上下文信息缺失")
+		return
+	}
 
-	handledNumber, err := h.service.HandleRiskNumber(phoneNumberStr, payload, operatorEmployeeID)
+	handledNumber, err := h.service.HandleRiskNumber(phoneNumberStr, payload, operatorUsername)
 	if err != nil {
 		if errors.Is(err, services.ErrMobileNumberNotFound) {
 			utils.RespondNotFoundError(c, "手机号码")
 		} else if errors.Is(err, services.ErrEmployeeNotFound) {
-			utils.RespondAPIError(c, http.StatusBadRequest, "操作员工或新办卡人员工未找到", nil)
+			utils.RespondAPIError(c, http.StatusBadRequest, "新办卡人员工未找到", nil)
 		} else if errors.Is(err, repositories.ErrEmployeeNotActive) {
-			utils.RespondAPIError(c, http.StatusBadRequest, "操作员工或新办卡人员工不是在职状态", nil)
+			utils.RespondAPIError(c, http.StatusBadRequest, "新办卡人员工不是在职状态", nil)
 		} else if strings.Contains(err.Error(), "只能处理状态为 risk_pending 的号码") {
 			utils.RespondAPIError(c, http.StatusBadRequest, "只能处理状态为风险待核实(risk_pending)的号码", nil)
 		} else if strings.Contains(err.Error(), "变更办卡人时必须提供新办卡人员工ID") ||
