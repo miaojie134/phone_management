@@ -86,11 +86,15 @@ func SetupRouter(db *gorm.DB) *gin.Engine {
 			mobileNumbersGroup.POST("/", mobileNumberHandler.CreateMobileNumber)
 			// GET /api/v1/mobilenumbers/
 			mobileNumbersGroup.GET("/", mobileNumberHandler.GetMobileNumbers)
+			// GET /api/v1/mobilenumbers/risk-pending - 获取风险号码列表
+			mobileNumbersGroup.GET("/risk-pending", mobileNumberHandler.GetRiskPendingNumbers)
 			// GET /api/v1/mobilenumbers/:phoneNumber
 			mobileNumbersGroup.GET("/:phoneNumber", mobileNumberHandler.GetMobileNumberByID)
 			mobileNumbersGroup.POST("/:phoneNumber/update", mobileNumberHandler.UpdateMobileNumber)
 			mobileNumbersGroup.POST("/:phoneNumber/assign", mobileNumberHandler.AssignMobileNumber)
 			mobileNumbersGroup.POST("/:phoneNumber/unassign", mobileNumberHandler.UnassignMobileNumber)
+			// POST /api/v1/mobilenumbers/:phoneNumber/handle-risk - 处理风险号码
+			mobileNumbersGroup.POST("/:phoneNumber/handle-risk", mobileNumberHandler.HandleRiskNumber)
 			// POST /api/v1/mobilenumbers/import 批量导入手机号码
 			mobileNumbersGroup.POST("/import", mobileNumberHandler.BatchImportMobileNumbers)
 		}

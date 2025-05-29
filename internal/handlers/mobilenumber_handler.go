@@ -42,6 +42,18 @@ type CreateMobileNumberPayload struct {
 	// CancellationDate      string `json:"cancellationDate,omitempty" binding:"omitempty,datetime=2006-01-02"`
 }
 
+// PagedMobileNumbersData 定义了手机号码列表的分页响应结构
+type PagedMobileNumbersData struct {
+	Items      []models.MobileNumberResponse `json:"items"`
+	Pagination PaginationInfo                `json:"pagination"`
+}
+
+// PagedRiskNumbersData 定义了风险号码列表的分页响应结构
+type PagedRiskNumbersData struct {
+	Items      []models.RiskNumberResponse `json:"items"`
+	Pagination PaginationInfo              `json:"pagination"`
+}
+
 // CreateMobileNumber godoc
 // @Summary 新增一个手机号码
 // @Description 从请求体绑定数据并验证，数据保存到 SQLite 的 MobileNumbers 表中，进行手机号码唯一性校验。
@@ -104,12 +116,6 @@ func (h *MobileNumberHandler) CreateMobileNumber(c *gin.Context) {
 	}
 
 	utils.RespondSuccess(c, http.StatusCreated, createdMobileNumber, "手机号码创建成功")
-}
-
-// 定义 GetMobileNumbers 的分页响应结构
-type PagedMobileNumbersData struct {
-	Items      []models.MobileNumberResponse `json:"items"`
-	Pagination PaginationInfo                `json:"pagination"`
 }
 
 // GetMobileNumbers godoc
@@ -572,4 +578,149 @@ func (h *MobileNumberHandler) BatchImportMobileNumbers(c *gin.Context) {
 	}
 
 	utils.RespondSuccess(c, http.StatusOK, response, response.Message)
+}
+
+// GetRiskPendingNumbers godoc
+// @Summary 获取风险号码列表
+// @Description 获取状态为risk_pending的手机号码列表，支持分页、搜索和筛选
+// @Tags MobileNumbers
+// @Accept json
+// @Produce json
+// @Param page query int false "页码" default(1)
+// @Param limit query int false "每页数量" default(10)
+// @Param sortBy query string false "排序字段 (例如: phoneNumber, applicationDate, status)"
+// @Param sortOrder query string false "排序顺序 ('asc'或'desc')" default("desc")
+// @Param search query string false "搜索关键词 (匹配手机号、办卡人姓名、当前使用人姓名)"
+// @Param applicantStatus query string false "办卡人在职状态筛选 ('Active'或'Departed')"
+// @Success 200 {object} utils.SuccessResponse{data=PagedRiskNumbersData} "成功响应，包含风险号码列表和分页信息"
+// @Failure 400 {object} utils.APIErrorResponse "请求参数错误"
+// @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
+// @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
+// @Router /mobilenumbers/risk-pending [get]
+// @Security BearerAuth
+func (h *MobileNumberHandler) GetRiskPendingNumbers(c *gin.Context) {
+	type GetRiskPendingNumbersQuery struct {
+		Page            int    `form:"page,default=1"`
+		Limit           int    `form:"limit,default=10"`
+		SortBy          string `form:"sortBy"`
+		SortOrder       string `form:"sortOrder,default=desc"`
+		Search          string `form:"search"`
+		ApplicantStatus string `form:"applicantStatus" binding:"omitempty,oneof=Active Departed"`
+	}
+
+	var queryParams GetRiskPendingNumbersQuery
+	if err := c.ShouldBindQuery(&queryParams); err != nil {
+		utils.RespondValidationError(c, err.Error())
+		return
+	}
+
+	if queryParams.SortOrder != "asc" && queryParams.SortOrder != "desc" {
+		queryParams.SortOrder = "desc"
+	}
+	if queryParams.Limit <= 0 {
+		queryParams.Limit = 10
+	}
+	if queryParams.Page <= 0 {
+		queryParams.Page = 1
+	}
+
+	riskNumbers, totalItems, err := h.service.GetRiskPendingNumbers(
+		queryParams.Page,
+		queryParams.Limit,
+		queryParams.SortBy,
+		queryParams.SortOrder,
+		queryParams.Search,
+		queryParams.ApplicantStatus,
+	)
+
+	if err != nil {
+		utils.RespondInternalServerError(c, "获取风险号码列表失败", err.Error())
+		return
+	}
+
+	totalPages := int64(0)
+	if queryParams.Limit > 0 {
+		totalPages = (totalItems + int64(queryParams.Limit) - 1) / int64(queryParams.Limit)
+	}
+	if totalPages == 0 && totalItems > 0 {
+		totalPages = 1
+	}
+
+	pagedData := PagedRiskNumbersData{
+		Items: riskNumbers,
+		Pagination: PaginationInfo{
+			TotalItems:  totalItems,
+			TotalPages:  totalPages,
+			CurrentPage: queryParams.Page,
+			PageSize:    queryParams.Limit,
+		},
+	}
+
+	utils.RespondSuccess(c, http.StatusOK, pagedData, "风险号码列表获取成功")
+}
+
+// HandleRiskNumber godoc
+// @Summary 处理风险号码
+// @Description 处理状态为risk_pending的号码，支持变更办卡人、回收号码、注销号码三种操作
+// @Tags MobileNumbers
+// @Accept json
+// @Produce json
+// @Param phoneNumber path string true "手机号码字符串"
+// @Param handleRisk body models.HandleRiskNumberPayload true "处理风险号码的请求体"
+// @Success 200 {object} utils.SuccessResponse{data=models.MobileNumber} "处理成功的号码对象"
+// @Failure 400 {object} utils.APIErrorResponse "请求参数错误、数据校验失败或业务逻辑错误"
+// @Failure 401 {object} utils.APIErrorResponse "未认证或 Token 无效/过期"
+// @Failure 404 {object} utils.APIErrorResponse "手机号码未找到或员工未找到"
+// @Failure 500 {object} utils.APIErrorResponse "服务器内部错误"
+// @Router /mobilenumbers/{phoneNumber}/handle-risk [post]
+// @Security BearerAuth
+func (h *MobileNumberHandler) HandleRiskNumber(c *gin.Context) {
+	phoneNumberStr := c.Param("phoneNumber")
+
+	var payload models.HandleRiskNumberPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		utils.RespondValidationError(c, err.Error())
+		return
+	}
+
+	// 验证Action类型是否有效
+	if !models.IsValidRiskHandleAction(payload.Action) {
+		utils.RespondAPIError(c, http.StatusBadRequest, "无效的操作类型", "支持的操作: change_applicant, reclaim, deactivate")
+		return
+	}
+
+	// 业务逻辑校验：变更办卡人时必须提供新办卡人员工ID
+	if payload.Action == string(models.ActionChangeApplicant) {
+		if payload.NewApplicantEmployeeID == nil || *payload.NewApplicantEmployeeID == "" {
+			utils.RespondAPIError(c, http.StatusBadRequest, "变更办卡人时必须提供新办卡人员工ID", nil)
+			return
+		}
+	}
+
+	// TODO: 从JWT token中获取操作员工业务工号，这里暂时使用硬编码
+	// 在实际应用中，应该从认证中间件设置的上下文中获取当前用户信息
+	operatorEmployeeID := "ADMIN001" // 临时硬编码，实际应从JWT token获取
+
+	handledNumber, err := h.service.HandleRiskNumber(phoneNumberStr, payload, operatorEmployeeID)
+	if err != nil {
+		if errors.Is(err, services.ErrMobileNumberNotFound) {
+			utils.RespondNotFoundError(c, "手机号码")
+		} else if errors.Is(err, services.ErrEmployeeNotFound) {
+			utils.RespondAPIError(c, http.StatusBadRequest, "操作员工或新办卡人员工未找到", nil)
+		} else if errors.Is(err, repositories.ErrEmployeeNotActive) {
+			utils.RespondAPIError(c, http.StatusBadRequest, "操作员工或新办卡人员工不是在职状态", nil)
+		} else if strings.Contains(err.Error(), "只能处理状态为 risk_pending 的号码") {
+			utils.RespondAPIError(c, http.StatusBadRequest, "只能处理状态为风险待核实(risk_pending)的号码", nil)
+		} else if strings.Contains(err.Error(), "变更办卡人时必须提供新办卡人员工ID") ||
+			strings.Contains(err.Error(), "新办卡人员工未找到") ||
+			strings.Contains(err.Error(), "新办卡人必须是在职状态") ||
+			strings.Contains(err.Error(), "无效的操作类型") {
+			utils.RespondAPIError(c, http.StatusBadRequest, err.Error(), nil)
+		} else {
+			utils.RespondInternalServerError(c, "处理风险号码失败", err.Error())
+		}
+		return
+	}
+
+	utils.RespondSuccess(c, http.StatusOK, handledNumber, "风险号码处理成功")
 }

@@ -162,6 +162,15 @@ definitions:
       pagination:
         $ref: '#/definitions/handlers.PaginationInfo'
     type: object
+  handlers.PagedRiskNumbersData:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/models.RiskNumberResponse'
+        type: array
+      pagination:
+        $ref: '#/definitions/handlers.PaginationInfo'
+    type: object
   handlers.PaginationInfo:
     properties:
       currentPage:
@@ -263,6 +272,26 @@ definitions:
         items:
           $ref: '#/definitions/models.MobileNumberBasicInfo'
         type: array
+    type: object
+  models.HandleRiskNumberPayload:
+    properties:
+      action:
+        description: 操作类型：变更办卡人、回收、注销
+        type: string
+      changeReason:
+        description: 变更原因
+        maxLength: 255
+        type: string
+      newApplicantEmployeeId:
+        description: 新办卡人员工业务工号（变更办卡人时必填）
+        type: string
+      remarks:
+        description: 备注
+        maxLength: 500
+        type: string
+    required:
+    - action
+    - changeReason
     type: object
   models.MobileNumber:
     properties:
@@ -499,6 +528,57 @@ definitions:
       reportedAt:
         type: string
       userComment:
+        type: string
+    type: object
+  models.RiskNumberResponse:
+    properties:
+      applicantDepartureDate:
+        description: 办卡人离职日期
+        type: string
+      applicantEmployeeId:
+        description: 办卡人员工业务工号
+        type: string
+      applicantName:
+        description: 办卡人姓名
+        type: string
+      applicantStatus:
+        description: 办卡人当前在职状态
+        type: string
+      applicationDate:
+        type: string
+      cancellationDate:
+        type: string
+      createdAt:
+        type: string
+      currentEmployeeId:
+        description: 当前使用人员工业务工号
+        type: string
+      currentUserName:
+        description: 当前使用人姓名
+        type: string
+      daysSinceDeparture:
+        description: 离职天数
+        type: integer
+      id:
+        type: integer
+      phoneNumber:
+        type: string
+      purpose:
+        description: 号码用途
+        type: string
+      remarks:
+        type: string
+      status:
+        description: 英文状态值
+        type: string
+      updatedAt:
+        type: string
+      usageHistory:
+        description: 号码使用历史
+        items:
+          $ref: '#/definitions/models.NumberUsageHistory'
+        type: array
+      vendor:
         type: string
     type: object
   models.UnlistedNumber:
@@ -1168,6 +1248,56 @@ paths:
       summary: 将指定手机号码分配给一个员工
       tags:
       - MobileNumbers
+  /mobilenumbers/{phoneNumber}/handle-risk:
+    post:
+      consumes:
+      - application/json
+      description: 处理状态为risk_pending的号码，支持变更办卡人、回收号码、注销号码三种操作
+      parameters:
+      - description: 手机号码字符串
+        in: path
+        name: phoneNumber
+        required: true
+        type: string
+      - description: 处理风险号码的请求体
+        in: body
+        name: handleRisk
+        required: true
+        schema:
+          $ref: '#/definitions/models.HandleRiskNumberPayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 处理成功的号码对象
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.MobileNumber'
+              type: object
+        "400":
+          description: 请求参数错误、数据校验失败或业务逻辑错误
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "401":
+          description: 未认证或 Token 无效/过期
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "404":
+          description: 手机号码未找到或员工未找到
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 处理风险号码
+      tags:
+      - MobileNumbers
   /mobilenumbers/{phoneNumber}/unassign:
     post:
       consumes:
@@ -1309,6 +1439,68 @@ paths:
       security:
       - BearerAuth: []
       summary: 批量导入手机号码数据 (CSV)
+      tags:
+      - MobileNumbers
+  /mobilenumbers/risk-pending:
+    get:
+      consumes:
+      - application/json
+      description: 获取状态为risk_pending的手机号码列表，支持分页、搜索和筛选
+      parameters:
+      - default: 1
+        description: 页码
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: limit
+        type: integer
+      - description: '排序字段 (例如: phoneNumber, applicationDate, status)'
+        in: query
+        name: sortBy
+        type: string
+      - default: '"desc"'
+        description: 排序顺序 ('asc'或'desc')
+        in: query
+        name: sortOrder
+        type: string
+      - description: 搜索关键词 (匹配手机号、办卡人姓名、当前使用人姓名)
+        in: query
+        name: search
+        type: string
+      - description: 办卡人在职状态筛选 ('Active'或'Departed')
+        in: query
+        name: applicantStatus
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功响应，包含风险号码列表和分页信息
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.PagedRiskNumbersData'
+              type: object
+        "400":
+          description: 请求参数错误
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "401":
+          description: 未认证或 Token 无效/过期
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+        "500":
+          description: 服务器内部错误
+          schema:
+            $ref: '#/definitions/utils.APIErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 获取风险号码列表
       tags:
       - MobileNumbers
   /verification/admin/phone-status:

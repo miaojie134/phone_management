@@ -52,7 +52,7 @@ func InitDB() {
 		},
 	)
 
-	gormDB, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{
+	gormDB, err = gorm.Open(sqlite.Open(dbPath+"?_journal_mode=WAL&_timeout=20000&_synchronous=NORMAL&_cache_size=1000&_locking_mode=NORMAL&_temp_store=memory"), &gorm.Config{
 		Logger: newLogger,
 	})
 
@@ -65,10 +65,27 @@ func InitDB() {
 		log.Fatalf("Failed to get underlying sql.DB from GORM: %v", err)
 	}
 
-	// 设置数据库连接池参数 (可选)
-	sqlDB.SetMaxIdleConns(10)
-	sqlDB.SetMaxOpenConns(100)
+	// 设置数据库连接池参数 (优化并发性能)
+	sqlDB.SetMaxIdleConns(5)  // 减少空闲连接数
+	sqlDB.SetMaxOpenConns(25) // 减少最大连接数
 	sqlDB.SetConnMaxLifetime(time.Hour)
+
+	// 设置SQLite特定的PRAGMA参数来优化并发性能
+	if err := gormDB.Exec("PRAGMA busy_timeout = 30000").Error; err != nil {
+		log.Printf("Warning: Failed to set busy_timeout: %v", err)
+	}
+	if err := gormDB.Exec("PRAGMA journal_mode = WAL").Error; err != nil {
+		log.Printf("Warning: Failed to set journal_mode: %v", err)
+	}
+	if err := gormDB.Exec("PRAGMA synchronous = NORMAL").Error; err != nil {
+		log.Printf("Warning: Failed to set synchronous: %v", err)
+	}
+	if err := gormDB.Exec("PRAGMA cache_size = 1000").Error; err != nil {
+		log.Printf("Warning: Failed to set cache_size: %v", err)
+	}
+	if err := gormDB.Exec("PRAGMA temp_store = memory").Error; err != nil {
+		log.Printf("Warning: Failed to set temp_store: %v", err)
+	}
 
 	log.Printf("Successfully connected to database using GORM: %s", dbPath)
 

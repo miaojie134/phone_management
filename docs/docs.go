@@ -745,6 +745,105 @@ const docTemplate = `{
                 }
             }
         },
+        "/mobilenumbers/risk-pending": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "获取状态为risk_pending的手机号码列表，支持分页、搜索和筛选",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MobileNumbers"
+                ],
+                "summary": "获取风险号码列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "页码",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页数量",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "排序字段 (例如: phoneNumber, applicationDate, status)",
+                        "name": "sortBy",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "\"desc\"",
+                        "description": "排序顺序 ('asc'或'desc')",
+                        "name": "sortOrder",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "搜索关键词 (匹配手机号、办卡人姓名、当前使用人姓名)",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "办卡人在职状态筛选 ('Active'或'Departed')",
+                        "name": "applicantStatus",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功响应，包含风险号码列表和分页信息",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/handlers.PagedRiskNumbersData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未认证或 Token 无效/过期",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/mobilenumbers/{phoneNumber}": {
             "get": {
                 "security": [
@@ -887,6 +986,88 @@ const docTemplate = `{
                     },
                     "409": {
                         "description": "操作冲突 (例如：号码非闲置，员工非在职)",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "服务器内部错误",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/mobilenumbers/{phoneNumber}/handle-risk": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "处理状态为risk_pending的号码，支持变更办卡人、回收号码、注销号码三种操作",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "MobileNumbers"
+                ],
+                "summary": "处理风险号码",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "手机号码字符串",
+                        "name": "phoneNumber",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "处理风险号码的请求体",
+                        "name": "handleRisk",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.HandleRiskNumberPayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "处理成功的号码对象",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.MobileNumber"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "请求参数错误、数据校验失败或业务逻辑错误",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "未认证或 Token 无效/过期",
+                        "schema": {
+                            "$ref": "#/definitions/utils.APIErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "手机号码未找到或员工未找到",
                         "schema": {
                             "$ref": "#/definitions/utils.APIErrorResponse"
                         }
@@ -1631,6 +1812,20 @@ const docTemplate = `{
                 }
             }
         },
+        "handlers.PagedRiskNumbersData": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.RiskNumberResponse"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/handlers.PaginationInfo"
+                }
+            }
+        },
         "handlers.PaginationInfo": {
             "type": "object",
             "properties": {
@@ -1778,6 +1973,33 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/models.MobileNumberBasicInfo"
                     }
+                }
+            }
+        },
+        "models.HandleRiskNumberPayload": {
+            "type": "object",
+            "required": [
+                "action",
+                "changeReason"
+            ],
+            "properties": {
+                "action": {
+                    "description": "操作类型：变更办卡人、回收、注销",
+                    "type": "string"
+                },
+                "changeReason": {
+                    "description": "变更原因",
+                    "type": "string",
+                    "maxLength": 255
+                },
+                "newApplicantEmployeeId": {
+                    "description": "新办卡人员工业务工号（变更办卡人时必填）",
+                    "type": "string"
+                },
+                "remarks": {
+                    "description": "备注",
+                    "type": "string",
+                    "maxLength": 500
                 }
             }
         },
@@ -2125,6 +2347,78 @@ const docTemplate = `{
                 }
             }
         },
+        "models.RiskNumberResponse": {
+            "type": "object",
+            "properties": {
+                "applicantDepartureDate": {
+                    "description": "办卡人离职日期",
+                    "type": "string"
+                },
+                "applicantEmployeeId": {
+                    "description": "办卡人员工业务工号",
+                    "type": "string"
+                },
+                "applicantName": {
+                    "description": "办卡人姓名",
+                    "type": "string"
+                },
+                "applicantStatus": {
+                    "description": "办卡人当前在职状态",
+                    "type": "string"
+                },
+                "applicationDate": {
+                    "type": "string"
+                },
+                "cancellationDate": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "currentEmployeeId": {
+                    "description": "当前使用人员工业务工号",
+                    "type": "string"
+                },
+                "currentUserName": {
+                    "description": "当前使用人姓名",
+                    "type": "string"
+                },
+                "daysSinceDeparture": {
+                    "description": "离职天数",
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "phoneNumber": {
+                    "type": "string"
+                },
+                "purpose": {
+                    "description": "号码用途",
+                    "type": "string"
+                },
+                "remarks": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "英文状态值",
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "usageHistory": {
+                    "description": "号码使用历史",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.NumberUsageHistory"
+                    }
+                },
+                "vendor": {
+                    "type": "string"
+                }
+            }
+        },
         "models.UnlistedNumber": {
             "type": "object",
             "required": [
@@ -2376,7 +2670,6 @@ var SwaggerInfo = &swag.Spec{
 	Description:      "",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
-
 }
 
 func init() {

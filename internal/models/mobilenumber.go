@@ -18,6 +18,15 @@ const (
 	StatusUserReport          NumberStatus = "user_reported"        // 待核实-用户报告
 )
 
+// RiskHandleAction 定义了风险号码处理操作的枚举
+type RiskHandleAction string
+
+const (
+	ActionChangeApplicant RiskHandleAction = "change_applicant" // 变更办卡人
+	ActionReclaim         RiskHandleAction = "reclaim"          // 回收号码
+	ActionDeactivate      RiskHandleAction = "deactivate"       // 注销号码
+)
+
 // GetAllStatuses 返回所有可用的状态
 func GetAllStatuses() []NumberStatus {
 	return []NumberStatus{
@@ -34,6 +43,25 @@ func GetAllStatuses() []NumberStatus {
 func IsValidStatus(status string) bool {
 	for _, validStatus := range GetAllStatuses() {
 		if string(validStatus) == status {
+			return true
+		}
+	}
+	return false
+}
+
+// GetAllRiskHandleActions 返回所有可用的风险处理操作
+func GetAllRiskHandleActions() []RiskHandleAction {
+	return []RiskHandleAction{
+		ActionChangeApplicant,
+		ActionReclaim,
+		ActionDeactivate,
+	}
+}
+
+// IsValidRiskHandleAction 检查风险处理操作是否有效
+func IsValidRiskHandleAction(action string) bool {
+	for _, validAction := range GetAllRiskHandleActions() {
+		if string(validAction) == action {
 			return true
 		}
 	}
@@ -108,4 +136,19 @@ type MobileNumberBasicInfo struct {
 	ID          uint   `json:"id"`
 	PhoneNumber string `json:"phoneNumber"`
 	Status      string `json:"status"` // 英文状态值
+}
+
+// HandleRiskNumberPayload 定义了处理风险号码的请求体
+type HandleRiskNumberPayload struct {
+	Action                 string  `json:"action" binding:"required"`                            // 操作类型：变更办卡人、回收、注销
+	NewApplicantEmployeeID *string `json:"newApplicantEmployeeId,omitempty" binding:"omitempty"` // 新办卡人员工业务工号（变更办卡人时必填）
+	ChangeReason           string  `json:"changeReason" binding:"required,max=255"`              // 变更原因
+	Remarks                string  `json:"remarks" binding:"omitempty,max=500"`                  // 备注
+}
+
+// RiskNumberResponse 风险号码响应结构，继承MobileNumberResponse并增加风险相关信息
+type RiskNumberResponse struct {
+	MobileNumberResponse
+	ApplicantDepartureDate *time.Time `json:"applicantDepartureDate,omitempty"` // 办卡人离职日期
+	DaysSinceDeparture     *int       `json:"daysSinceDeparture,omitempty"`     // 离职天数
 }

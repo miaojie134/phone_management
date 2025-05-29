@@ -41,6 +41,10 @@ type MobileNumberRepository interface {
 	FindByApplicantEmployeeID(ctx context.Context, employeeID string) ([]models.MobileNumber, error)
 	// BatchUpdateStatus 批量更新多个号码的状态
 	BatchUpdateStatus(ctx context.Context, numberIDs []uint, status string) error
+	// GetRiskPendingNumbers 获取风险号码列表
+	GetRiskPendingNumbers(page, limit int, sortBy, sortOrder, search, applicantStatus string) ([]models.RiskNumberResponse, int64, error)
+	// HandleRiskNumber 处理风险号码（变更办卡人、回收、注销）
+	HandleRiskNumber(ctx context.Context, phoneNumber string, payload models.HandleRiskNumberPayload, operatorEmployeeID string) (*models.MobileNumber, error)
 	// UpdateLastConfirmationDate 更新号码的最后确认日期
 	UpdateLastConfirmationDate(ctx context.Context, numberID uint) error
 	// MarkAsReportedByUser 将号码标记为用户报告问题
@@ -51,12 +55,18 @@ type MobileNumberRepository interface {
 
 // gormMobileNumberRepository 是 MobileNumberRepository 的 GORM 实现
 type gormMobileNumberRepository struct {
-	db *gorm.DB
+	db                   *gorm.DB
+	applicantHistoryRepo NumberApplicantHistoryRepository
+	usageHistoryRepo     NumberUsageHistoryRepository
 }
 
 // NewGormMobileNumberRepository 创建一个新的 gormMobileNumberRepository 实例
 func NewGormMobileNumberRepository(db *gorm.DB) MobileNumberRepository {
-	return &gormMobileNumberRepository{db: db}
+	return &gormMobileNumberRepository{
+		db:                   db,
+		applicantHistoryRepo: NewGormNumberApplicantHistoryRepository(db),
+		usageHistoryRepo:     NewGormNumberUsageHistoryRepository(db),
+	}
 }
 
 // CreateMobileNumber 在数据库中创建一个新的手机号码记录
@@ -201,9 +211,11 @@ func (r *gormMobileNumberRepository) GetMobileNumberResponseByPhoneNumber(phoneN
 	}
 
 	// 加载使用历史
-	if err := r.db.Model(&models.NumberUsageHistory{}).Where("mobile_number_db_id = ?", mobileNumberDetail.ID).Order("start_date desc").Find(&mobileNumberDetail.UsageHistory).Error; err != nil {
+	histories, err := r.usageHistoryRepo.GetByMobileNumberID(context.Background(), mobileNumberDetail.ID)
+	if err != nil {
 		return nil, err
 	}
+	mobileNumberDetail.UsageHistory = histories
 
 	return &mobileNumberDetail, nil
 }
@@ -289,6 +301,7 @@ func (r *gormMobileNumberRepository) AssignMobileNumber(numberID uint, employeeB
 			EmployeeID:       employeeBusinessID, // 存储业务工号
 			StartDate:        assignmentDate,
 		}
+		// 在事务内直接创建使用历史记录
 		if err := tx.Create(&usageHistory).Error; err != nil {
 			return err
 		}
@@ -322,21 +335,19 @@ func (r *gormMobileNumberRepository) UnassignMobileNumber(numberID uint, reclaim
 			return errors.New("数据不一致：使用号码没有关联当前用户业务工号")
 		}
 
+		// 查找当前有效的使用历史记录并更新结束时间
 		var usageHistory models.NumberUsageHistory
-		result := tx.Where("mobile_number_db_id = ? AND employee_id = ? AND end_date IS NULL",
-			numberID, *mobileNumber.CurrentEmployeeID). // 使用业务工号查询
-			Order("start_date desc").
-			First(&usageHistory)
-
-		if result.Error != nil {
-			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		if err := tx.Where("mobile_number_db_id = ? AND employee_id = ? AND end_date IS NULL", numberID, *mobileNumber.CurrentEmployeeID).
+			Order("start_date DESC").
+			First(&usageHistory).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrNoActiveUsageHistoryFound
 			}
-			return result.Error
+			return err
 		}
 
-		usageHistory.EndDate = &reclaimDate
-		if err := tx.Save(&usageHistory).Error; err != nil {
+		// 更新使用历史的结束时间
+		if err := tx.Model(&usageHistory).Update("end_date", reclaimDate).Error; err != nil {
 			return err
 		}
 
@@ -378,6 +389,191 @@ func (r *gormMobileNumberRepository) FindByApplicantEmployeeID(ctx context.Conte
 // BatchUpdateStatus 批量更新多个号码的状态
 func (r *gormMobileNumberRepository) BatchUpdateStatus(ctx context.Context, numberIDs []uint, status string) error {
 	return r.db.WithContext(ctx).Model(&models.MobileNumber{}).Where("id IN ?", numberIDs).Update("status", status).Error
+}
+
+// GetRiskPendingNumbers 获取风险号码列表
+func (r *gormMobileNumberRepository) GetRiskPendingNumbers(page, limit int, sortBy, sortOrder, search, applicantStatus string) ([]models.RiskNumberResponse, int64, error) {
+	var riskNumbers []models.RiskNumberResponse
+	var totalItems int64
+
+	// 基础查询构建器，只查询 risk_pending 状态的号码
+	queryBuilder := r.db.Model(&models.MobileNumber{}).
+		Joins("LEFT JOIN employees AS applicant ON applicant.employee_id = mobile_numbers.applicant_employee_id").
+		Joins("LEFT JOIN employees AS current_user ON current_user.employee_id = mobile_numbers.current_employee_id").
+		Where("mobile_numbers.status = ?", string(models.StatusRiskPending))
+
+	// 应用可选的过滤条件
+	if search != "" {
+		searchTerm := "%" + search + "%"
+		queryBuilder = queryBuilder.Where("mobile_numbers.phone_number LIKE ? OR applicant.full_name LIKE ? OR current_user.full_name LIKE ?", searchTerm, searchTerm, searchTerm)
+	}
+	if applicantStatus != "" { // 仅当 applicantStatus 参数非空时才应用此条件
+		queryBuilder = queryBuilder.Where("applicant.employment_status = ?", applicantStatus)
+	}
+
+	// 执行 COUNT 查询获取总数 (基于已应用的过滤器)
+	if err := queryBuilder.Count(&totalItems).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 为 SELECT 查询准备字段，包含离职相关信息
+	selectFields := []string{
+		"mobile_numbers.id AS id",
+		"mobile_numbers.phone_number AS phone_number",
+		"mobile_numbers.applicant_employee_id AS applicant_employee_id",
+		"applicant.full_name AS applicant_name",
+		"applicant.employment_status AS applicant_status",
+		"applicant.termination_date AS applicant_departure_date", // 办卡人离职日期
+		"mobile_numbers.application_date AS application_date",
+		"mobile_numbers.current_employee_id AS current_employee_id",
+		"current_user.full_name AS current_user_name",
+		"mobile_numbers.status AS status",
+		"mobile_numbers.purpose AS purpose",
+		"mobile_numbers.vendor AS vendor",
+		"mobile_numbers.remarks AS remarks",
+		"mobile_numbers.cancellation_date AS cancellation_date",
+		"mobile_numbers.created_at AS created_at",
+		"mobile_numbers.updated_at AS updated_at",
+	}
+
+	// 应用 SELECT, ORDER BY, OFFSET, LIMIT 到查询构建器
+	queryBuilder = queryBuilder.Select(selectFields)
+
+	// 处理排序
+	if sortBy != "" {
+		allowedSortByFields := map[string]string{
+			"id":              "mobile_numbers.id",
+			"phoneNumber":     "mobile_numbers.phone_number",
+			"applicationDate": "mobile_numbers.application_date",
+			"status":          "mobile_numbers.status",
+			"vendor":          "mobile_numbers.vendor",
+			"createdAt":       "mobile_numbers.created_at",
+			"applicantName":   "applicant.full_name",
+			"currentUserName": "current_user.full_name",
+			"applicantStatus": "applicant.employment_status",
+		}
+		dbSortBy, isValidField := allowedSortByFields[sortBy]
+		if !isValidField {
+			dbSortBy = "mobile_numbers.created_at" // 默认排序字段
+		}
+		if strings.ToLower(sortOrder) != "desc" {
+			sortOrder = "asc"
+		}
+		queryBuilder = queryBuilder.Order(dbSortBy + " " + sortOrder)
+	} else {
+		// 默认排序
+		queryBuilder = queryBuilder.Order("mobile_numbers.created_at desc")
+	}
+
+	// 处理分页
+	offset := (page - 1) * limit
+	queryBuilder = queryBuilder.Offset(offset).Limit(limit)
+
+	// 执行最终查询获取数据列表
+	if err := queryBuilder.Find(&riskNumbers).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 计算离职天数
+	for i := range riskNumbers {
+		if riskNumbers[i].ApplicantDepartureDate != nil {
+			days := int(time.Since(*riskNumbers[i].ApplicantDepartureDate).Hours() / 24)
+			riskNumbers[i].DaysSinceDeparture = &days
+		}
+	}
+
+	return riskNumbers, totalItems, nil
+}
+
+// HandleRiskNumber 处理风险号码（变更办卡人、回收、注销）
+func (r *gormMobileNumberRepository) HandleRiskNumber(ctx context.Context, phoneNumber string, payload models.HandleRiskNumberPayload, operatorEmployeeID string) (*models.MobileNumber, error) {
+	var mobileNumber models.MobileNumber
+
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 查找并锁定目标号码
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where("phone_number = ?", phoneNumber).First(&mobileNumber).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrRecordNotFound
+			}
+			return err
+		}
+
+		// 检查号码状态是否为 risk_pending
+		if mobileNumber.Status != string(models.StatusRiskPending) {
+			return errors.New("只能处理状态为 risk_pending 的号码")
+		}
+
+		switch payload.Action {
+		case string(models.ActionChangeApplicant):
+			// 变更办卡人
+			if payload.NewApplicantEmployeeID == nil || *payload.NewApplicantEmployeeID == "" {
+				return errors.New("变更办卡人时必须提供新办卡人员工ID")
+			}
+
+			// 验证新办卡人是否存在且在职
+			var newApplicant models.Employee
+			if err := tx.Where("employee_id = ?", *payload.NewApplicantEmployeeID).First(&newApplicant).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return errors.New("新办卡人员工未找到")
+				}
+				return err
+			}
+			if newApplicant.EmploymentStatus != "Active" {
+				return errors.New("新办卡人必须是在职状态")
+			}
+
+			// 创建变更历史记录
+			history := &models.NumberApplicantHistory{
+				MobileNumberDbID:    mobileNumber.ID,
+				PreviousApplicantID: mobileNumber.ApplicantEmployeeID,
+				NewApplicantID:      *payload.NewApplicantEmployeeID,
+				ChangeDate:          time.Now(),
+				ChangeReason:        payload.ChangeReason,
+				OperatorEmployeeID:  &operatorEmployeeID,
+				Remarks:             payload.Remarks,
+			}
+			if err := tx.Create(history).Error; err != nil {
+				return err
+			}
+
+			// 更新号码办卡人并恢复为正常状态
+			mobileNumber.ApplicantEmployeeID = *payload.NewApplicantEmployeeID
+			// 如果号码当前有使用人，保持 in_use 状态，否则设为 idle
+			if mobileNumber.CurrentEmployeeID != nil {
+				mobileNumber.Status = string(models.StatusInUse)
+			} else {
+				mobileNumber.Status = string(models.StatusIdle)
+			}
+
+		case string(models.ActionReclaim):
+			// 回收号码，设为闲置状态
+			mobileNumber.Status = string(models.StatusIdle)
+			mobileNumber.CurrentEmployeeID = nil // 清空当前使用人
+
+		case string(models.ActionDeactivate):
+			// 注销号码
+			mobileNumber.Status = string(models.StatusDeactivated)
+			mobileNumber.CancellationDate = &time.Time{}
+			now := time.Now()
+			mobileNumber.CancellationDate = &now
+			mobileNumber.CurrentEmployeeID = nil // 清空当前使用人
+
+		default:
+			return errors.New("无效的操作类型")
+		}
+
+		// 保存更新后的号码信息
+		if err := tx.Save(&mobileNumber).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return &mobileNumber, nil
 }
 
 // UpdateLastConfirmationDate 更新号码的最后确认日期

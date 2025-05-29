@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -29,6 +30,9 @@ type MobileNumberService interface {
 	// UnassignMobileNumber(numberID uint, reclaimDate time.Time) (*models.MobileNumber, error) // 旧方法
 	UnassignMobileNumberByPhoneNumber(phoneNumber string, reclaimDate time.Time) (*models.MobileNumber, error) //
 	ResolveApplicantNameToID(applicantName string) (string, error)                                             //
+	// 风险号码处理相关方法
+	GetRiskPendingNumbers(page, limit int, sortBy, sortOrder, search, applicantStatus string) ([]models.RiskNumberResponse, int64, error)
+	HandleRiskNumber(phoneNumber string, payload models.HandleRiskNumberPayload, operatorEmployeeID string) (*models.MobileNumber, error)
 }
 
 // mobileNumberService 是 MobileNumberService 的实现
@@ -225,4 +229,35 @@ func (s *mobileNumberService) ResolveApplicantNameToID(applicantName string) (st
 	}
 
 	return employees[0].EmployeeID, nil
+}
+
+// GetRiskPendingNumbers 处理获取风险号码列表的业务逻辑
+func (s *mobileNumberService) GetRiskPendingNumbers(page, limit int, sortBy, sortOrder, search, applicantStatus string) ([]models.RiskNumberResponse, int64, error) {
+	// 当前业务逻辑主要是参数传递和调用仓库层
+	// 未来可在这里添加更复杂的业务规则
+	return s.repo.GetRiskPendingNumbers(page, limit, sortBy, sortOrder, search, applicantStatus)
+}
+
+// HandleRiskNumber 处理处理风险号码的业务逻辑
+func (s *mobileNumberService) HandleRiskNumber(phoneNumber string, payload models.HandleRiskNumberPayload, operatorEmployeeID string) (*models.MobileNumber, error) {
+	// 1. 验证 operatorEmployeeID (操作员业务工号) 是否有效且在职
+	operator, err := s.employeeService.GetEmployeeByEmployeeID(operatorEmployeeID)
+	if err != nil {
+		return nil, err // err 可能是 ErrEmployeeNotFound 或其他DB错误
+	}
+	if operator.EmploymentStatus != "Active" { // 确保操作员在职才能处理号码, 直接与字符串 "Active" 比较
+		return nil, repositories.ErrEmployeeNotActive // 复用仓库层的错误，表示操作员非在职
+	}
+
+	// 2. 调用仓库层处理风险号码
+	ctx := context.Background()
+	handledMobileNumber, err := s.repo.HandleRiskNumber(ctx, phoneNumber, payload, operatorEmployeeID)
+	if err != nil {
+		if errors.Is(err, repositories.ErrRecordNotFound) {
+			return nil, ErrMobileNumberNotFound
+		}
+		// 其他特定错误会直接从 repo 传递上来
+		return nil, err
+	}
+	return handledMobileNumber, nil
 }
